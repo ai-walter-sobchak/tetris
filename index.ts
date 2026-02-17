@@ -11,6 +11,7 @@ import {
   PlayerEvent,
   PlayerManager,
   PlayerUIEvent,
+  RigidBodyType,
 } from 'hytopia';
 import type { World } from 'hytopia';
 import { createInitialState } from './src/server/state/WorldState.js';
@@ -20,6 +21,15 @@ import { pushAction } from './src/server/systems/InputSystem.js';
 import { clearRenderCache, render } from './src/server/systems/RenderSystem.js';
 import { sendHudToPlayer } from './src/server/services/HudService.js';
 import { handleCommand } from './src/server/services/CommandService.js';
+import {
+  getLeaderboardForHud,
+  upsertPlayer,
+  submitScore,
+  broadcastLeaderboard,
+  startLeaderboardBroadcastInterval,
+  stopLeaderboardBroadcastInterval,
+  refreshCache,
+} from './src/server/services/LeaderboardService.js';
 import {
   BLOCK_TEXTURE_URIS,
   BOARD_WALL_BLOCK_ID,
@@ -45,6 +55,7 @@ function placeSpawnPlatform(world: World): void {
 startServer((world: World) => {
   const state: TetrisState = createInitialState();
   let controllerPlayerId: string | null = null;
+  let prevGameStatus: typeof state.gameStatus = state.gameStatus;
 
   // Register block types before world.start() so chunk/world logic never sees unregistered IDs
   for (let id = 1; id <= 7; id++) {
@@ -66,6 +77,8 @@ startServer((world: World) => {
   });
 
   world.start();
+
+  startLeaderboardBroadcastInterval(world);
 
   const SOUNDTRACK_URI = 'audio/game-over.mp3';
   const soundtrack = new Audio({
@@ -99,7 +112,7 @@ startServer((world: World) => {
   /** Start the tick interval so actions (Start, R) are always consumed. Call when first player joins. */
   function startTickInterval(): void {
     if (gameLoopIntervalRef != null) return;
-    clearRenderCache();
+    clearRenderCache(world);
     render(state, world);
     setTimeout(tick, 0);
     gameLoopIntervalRef = setInterval(tick, tickIntervalMs);
@@ -109,7 +122,7 @@ startServer((world: World) => {
   function setGameStarted(): void {
     if (gameLoopStarted) return;
     gameLoopStarted = true;
-    clearRenderCache();
+    clearRenderCache(world);
     render(state, world);
   }
 
@@ -119,12 +132,23 @@ startServer((world: World) => {
     try {
       muteNonSoundtrackAudio(); // Strip any SFX (steps, crunch, etc.) before tick
       runTick(world, state, controllerPlayerId, tickIntervalMs, gameLoopStarted);
+      // Game over: submit controller's score and broadcast leaderboard (server-authoritative)
+      if (prevGameStatus === 'RUNNING' && state.gameStatus === 'GAME_OVER' && controllerPlayerId) {
+        const controller = PlayerManager.instance.getConnectedPlayersByWorld(world).find((p) => p.id === controllerPlayerId);
+        if (controller) {
+          submitScore(controller, state.score).then(() => {
+            refreshCache();
+            broadcastLeaderboard(world);
+          });
+        }
+      }
+      prevGameStatus = state.gameStatus;
       PlayerManager.instance.getConnectedPlayersByWorld(world).forEach((player) => {
         sendHudToPlayer(player, state, gameLoopStarted);
       });
       muteNonSoundtrackAudio(); // Again after tick so only soundtrack remains
     } catch (err) {
-      clearRenderCache();
+      clearRenderCache(world);
       render(state, world);
       if (typeof console !== 'undefined' && console.error) console.error('[Tetris] tick error', err);
     } finally {
@@ -145,10 +169,12 @@ startServer((world: World) => {
         if (action === 'start') setGameStarted();
       }
     });
-    sendHudToPlayer(player, state, gameLoopStarted);
+    upsertPlayer(player).then(() => {});
+    const leaderboardPayload = getLeaderboardForHud(String(player.id));
+    sendHudToPlayer(player, state, gameLoopStarted, leaderboardPayload);
 
     // Force full board render so client sees current game state
-    clearRenderCache();
+    clearRenderCache(world);
     render(state, world);
 
     // No platform: player floats at spawn so the board view isn't blocked (gravity disabled)
@@ -156,7 +182,7 @@ startServer((world: World) => {
     const playerEntity = new DefaultPlayerEntity({
       player,
       name: 'Player',
-      rigidBodyOptions: { gravityScale: 0 }, // float in space, don't fall
+      rigidBodyOptions: { type: RigidBodyType.DYNAMIC, gravityScale: 0 }, // float in space, don't fall
       controller: new DefaultPlayerEntityController({
         canWalk: () => false,
         canJump: () => false,
@@ -186,6 +212,6 @@ startServer((world: World) => {
     }
   });
 
-  clearRenderCache();
+  clearRenderCache(world);
   render(state, world);
 });

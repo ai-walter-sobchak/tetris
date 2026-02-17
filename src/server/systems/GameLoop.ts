@@ -36,7 +36,7 @@ export function runTick(
     state.softDropActive = softDropActive;
     if (action === 'reset') {
       resetState(state);
-      clearRenderCache();
+      clearRenderCache(world);
       render(state, world);
       return;
     }

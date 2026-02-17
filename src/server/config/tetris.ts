@@ -12,6 +12,20 @@ export const BOARD_ORIGIN = { x: 0, y: 0, z: 0 };
 /** Block type id for the visible board boundary (walls). Must exist in map blockTypes (e.g. stone = 15). */
 export const BOARD_WALL_BLOCK_ID = 15;
 
+/** Wall frame: thickness in grid units for left/right sides. Larger = pillars extend further left/right. */
+export const WALL_THICKNESS = 5;
+/** Left/right walls extend this many blocks in the horizontal X direction (left wall extends to -WALL_SIDE_X, right to BOARD_WIDTH + WALL_SIDE_X - 1). */
+export const WALL_SIDE_X = 20;
+/** Bottom "floor" and top "ceiling" thickness in grid units. Larger = clearly visible base and cap. */
+export const WALL_BOTTOM_THICKNESS = 4;
+export const WALL_TOP_THICKNESS = 3;
+/** Wall depth in front of the board (toward the player). */
+export const WALL_DEPTH = 2;
+/** Wall depth behind the board (away from the player). Walls extend in both Z directions. */
+export const WALL_DEPTH_BACK = 2;
+/** Probability [0,1] that a wall cell is filled; rest stay air for a broken/ruined look. 1 = solid. */
+export const WALL_FILL_PROBABILITY = 0.92;
+
 /** Spawn position: grid column and row. Top of 4x4 piece box; piece must fit in 0..BOARD_HEIGHT-1. */
 export const SPAWN_X = 3; // center-ish for 4-cell-wide pieces (e.g. I spans 3,4,5,6)
 export const SPAWN_Y = BOARD_HEIGHT - 4; // 16: so lowest cell of any 4-high rotation is at row 19

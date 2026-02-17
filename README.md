@@ -1,6 +1,3 @@
-<<<<<<< HEAD
-# tetris
-=======
 # Tetris (HYTOPIA SDK)
 
 Server-authoritative, voxel-rendered Tetris with a 10×20 board. Solo-first, mobile-friendly HUD, tick-based gravity.
@@ -59,5 +56,20 @@ Server-authoritative, voxel-rendered Tetris with a 10×20 board. Solo-first, mob
 - **No ghost** – Ghost (preview of drop position) is not shown.
 - **No lock delay** – Piece locks as soon as it cannot move down (no short delay to slide).
 - **Block textures** – Uses `blocks/cyan.png` etc.; add or replace under `assets/blocks/` if your project has custom textures.
-- **Next steps** – Hold piece, ghost piece, lock delay, optional seed (`/seed`), multiplayer garbage and leaderboards.
->>>>>>> 603d756 (Initial commit)
+- **Next steps** – Hold piece, ghost piece, lock delay, optional seed (`/seed`), multiplayer garbage.
+
+## Leaderboard Setup
+
+The game includes a **global persistent leaderboard** shown in a HUD panel on the right. It persists across server restarts and is stored in Supabase Postgres.
+
+1. **Environment variables** (server only; do not expose the service role key to the client):
+   - `NEXT_PUBLIC_SUPABASE_URL` – your Supabase project URL
+   - `SUPABASE_SERVICE_ROLE_KEY` – server-only key for backend writes
+
+2. **Database**: Run the provided SQL in the Supabase SQL Editor:
+   - Open your Supabase project → SQL Editor → New query
+   - Paste and run the contents of `supabase/leaderboard.sql`
+
+3. **Install dependencies**: `npm install` (adds `@supabase/supabase-js`).
+
+4. Restart the server; the leaderboard panel will show **Online** when Supabase is reachable, or **Offline** if the DB is unavailable (gameplay continues). Scores are submitted only on game over (server-authoritative) and only when the run beats the player’s previous best.

@@ -8,6 +8,14 @@
 </head>
 <body>
   <div id="hud">
+    <div class="leaderboard-panel" id="leaderboard-panel" aria-label="Global leaderboard">
+      <div class="leaderboard-title">LEADERBOARD</div>
+      <div class="leaderboard-meta">
+        <span class="leaderboard-scope">Global</span>
+        <span class="leaderboard-status" id="leaderboard-status">—</span>
+      </div>
+      <div class="leaderboard-rows" id="leaderboard-rows"></div>
+    </div>
     <div class="top">
       <div class="stats">
         <div class="stat"><span class="label">Score</span><span id="score">0</span></div>
@@ -19,14 +27,6 @@
       <div class="start-area" id="start-area">
         <button type="button" class="btn start" id="btn-start" data-action="start" aria-label="Start game">Start</button>
       </div>
-    </div>
-    <div class="controls" id="controls" style="display: none;">
-      <button type="button" class="btn left" data-action="left" aria-label="Left">←</button>
-      <button type="button" class="btn right" data-action="right" aria-label="Right">→</button>
-      <button type="button" class="btn rotate" data-action="rotate" aria-label="Rotate">↻</button>
-      <button type="button" class="btn soft-drop" data-action="softDropDown" aria-label="Soft drop">↓</button>
-      <button type="button" class="btn hard-drop" data-action="hardDrop" aria-label="Hard drop">⏬</button>
-      <button type="button" class="btn reset" data-action="reset" aria-label="Reset">Reset</button>
     </div>
   </div>
   <script src="{{CDN_ASSETS_URL}}/ui/hud.js"></script>

@@ -93,19 +93,6 @@ body {
   color: #f44;
 }
 
-.controls {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  justify-content: center;
-  align-items: center;
-  padding: 12px;
-  background: rgba(0, 0, 0, 0.5);
-  border-radius: 12px;
-  max-width: 400px;
-  margin: 0 auto;
-}
-
 .btn {
   min-width: 52px;
   min-height: 52px;
@@ -124,28 +111,6 @@ body {
 .btn:active {
   background: rgba(80, 80, 120, 0.95);
   transform: scale(0.96);
-}
-
-.btn.left,
-.btn.right {
-  font-size: 1.75rem;
-}
-
-.btn.rotate {
-  font-size: 1.5rem;
-}
-
-.btn.soft-drop {
-  font-size: 1.75rem;
-}
-
-.btn.hard-drop {
-  font-size: 1.25rem;
-}
-
-.btn.reset {
-  font-size: 0.95rem;
-  min-width: 72px;
 }
 
 .start-area {
@@ -167,14 +132,120 @@ body {
   background: rgba(50, 200, 90, 0.95);
 }
 
+/* ——— Leaderboard panel (right side, always visible) ——— */
+.leaderboard-panel {
+  position: fixed;
+  right: 12px;
+  top: 12px;
+  width: min(280px, calc(100vw - 24px));
+  max-height: calc(100vh - 24px);
+  padding: 12px 14px;
+  background: rgba(0, 0, 0, 0.82);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-radius: 10px;
+  color: #fff;
+  font-size: 0.9rem;
+  pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+}
+
+.leaderboard-title {
+  font-weight: 700;
+  font-size: 0.95rem;
+  letter-spacing: 0.08em;
+  opacity: 0.95;
+  margin-bottom: 2px;
+}
+
+.leaderboard-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.75rem;
+  opacity: 0.85;
+}
+
+.leaderboard-scope {
+  font-weight: 500;
+}
+
+.leaderboard-status {
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.leaderboard-status.online {
+  color: #6c8;
+}
+
+.leaderboard-status.offline {
+  color: #c84;
+}
+
+.leaderboard-rows {
+  overflow-y: auto;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.leaderboard-row {
+  display: grid;
+  grid-template-columns: 28px 1fr 72px;
+  gap: 8px;
+  align-items: center;
+  padding: 4px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 0.85rem;
+}
+
+.leaderboard-row:last-child {
+  border-bottom: none;
+}
+
+.leaderboard-row.self {
+  background: rgba(100, 140, 255, 0.25);
+  margin: 0 -8px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  border-bottom-color: transparent;
+}
+
+.leaderboard-row .rank {
+  font-weight: 700;
+  opacity: 0.9;
+}
+
+.leaderboard-row .name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.leaderboard-row .score {
+  text-align: right;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.leaderboard-panel.offline .leaderboard-rows {
+  opacity: 0.75;
+}
+
+.leaderboard-empty {
+  padding: 12px 0;
+  text-align: center;
+  font-size: 0.85rem;
+  opacity: 0.8;
+}
+
 @media (min-width: 600px) {
   .btn {
     min-width: 48px;
     min-height: 48px;
     font-size: 1.35rem;
-  }
-  .btn.reset {
-    min-width: 64px;
-    font-size: 0.85rem;
   }
 }

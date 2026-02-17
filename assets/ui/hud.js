@@ -11,29 +11,65 @@
     }
   }
 
+  function updateLeaderboard(leaderboard) {
+    if (!leaderboard || typeof leaderboard !== 'object') return;
+    var panel = document.getElementById('leaderboard-panel');
+    var statusEl = document.getElementById('leaderboard-status');
+    var rowsEl = document.getElementById('leaderboard-rows');
+    if (!panel || !rowsEl) return;
+    var status = leaderboard.status === 'online' ? 'online' : 'offline';
+    var selfId = leaderboard.selfPlayerId;
+    panel.classList.toggle('offline', status !== 'online');
+    if (statusEl) {
+      statusEl.textContent = status === 'online' ? 'Online' : 'Offline';
+      statusEl.className = 'leaderboard-status ' + status;
+    }
+    var rows = Array.isArray(leaderboard.rows) ? leaderboard.rows : [];
+    if (rows.length === 0) {
+      rowsEl.innerHTML = '<div class="leaderboard-empty">No scores yet</div>';
+      return;
+    }
+    var html = '';
+    for (var i = 0; i < rows.length; i++) {
+      var r = rows[i];
+      var rank = r.rank != null ? r.rank : i + 1;
+      var name = (r.name != null && r.name !== '') ? String(r.name) : (r.playerId || '—');
+      var score = r.score != null ? Number(r.score) : 0;
+      var isSelf = selfId != null && String(r.playerId) === String(selfId);
+      html += '<div class="leaderboard-row' + (isSelf ? ' self' : '') + '" data-player-id="' + (r.playerId || '') + '">';
+      html += '<span class="rank">' + rank + '</span>';
+      html += '<span class="name" title="' + name.replace(/"/g, '&quot;') + '">' + name.replace(/</g, '&lt;') + '</span>';
+      html += '<span class="score">' + score + '</span>';
+      html += '</div>';
+    }
+    rowsEl.innerHTML = html;
+  }
+
   function updateUI(data) {
     const el = function id(name) { return document.getElementById(name); };
+    if (data.leaderboard !== undefined) updateLeaderboard(data.leaderboard);
     if (data.score !== undefined) { var s = el('score'); if (s) s.textContent = data.score; }
     if (data.level !== undefined) { var l = el('level'); if (l) l.textContent = data.level; }
     if (data.lines !== undefined) { var n = el('lines'); if (n) n.textContent = data.lines; }
     if (data.status !== undefined) {
       var statusEl = el('status');
+      var statusStat = statusEl && statusEl.closest('.stat.status');
       if (statusEl) {
         statusEl.textContent = data.status;
         statusEl.setAttribute('data-status', data.status);
       }
+      if (statusStat) {
+        statusStat.style.display = data.status === 'RUNNING' ? 'none' : '';
+      }
     }
     if (data.gameStarted !== undefined) {
       var startArea = document.getElementById('start-area');
-      var controls = document.getElementById('controls');
       var hint = document.getElementById('hint');
       if (data.gameStarted) {
         if (startArea) startArea.style.display = 'none';
-        if (controls) controls.style.display = '';
         if (hint) hint.textContent = 'WASD or arrows: A/← left, D/→ right, W/↑ rotate, S/↓ soft drop. Space hard drop. R or Reset to restart.';
       } else {
         if (startArea) startArea.style.display = '';
-        if (controls) controls.style.display = 'none';
         if (hint) hint.textContent = 'Click Start to begin the round.';
       }
     }

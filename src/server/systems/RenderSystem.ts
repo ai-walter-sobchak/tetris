@@ -8,6 +8,7 @@ import { BOARD_ORIGIN, BOARD_WIDTH, BOARD_HEIGHT, BOARD_WALL_BLOCK_ID } from '..
 import { PIECE_TYPE_TO_BLOCK_ID } from '../config/tetris.js';
 import type { TetrisState } from '../state/types.js';
 import { getPieceCells } from './TetrisSystem.js';
+import { getWallLayout, wallCellToWorld } from '../world/WallGenerator.js';
 
 /** When true, every tick does a full redraw (no diff). Safer if engine batches setBlock. */
 export const RENDER_FULL_REDRAW_EVERY_TICK = true;
@@ -19,6 +20,13 @@ function cellKey(x: number, y: number): string {
 
 /** Last rendered state: which cells had which block id (so we can clear/set only diffs). */
 let lastRendered: Map<string, number> = new Map();
+
+/** Last rendered procedural wall: world position keys "x,y,z" so we can clear when layout changes (e.g. new game seed). */
+let lastRenderedWall: Set<string> = new Set();
+
+function wallPosKey(x: number, y: number, z: number): string {
+  return `${x},${y},${z}`;
+}
 
 /**
  * Compute desired block id at grid (x,y): 0 = air, 1..7 = piece type.
@@ -76,16 +84,37 @@ export function render(state: TetrisState, world: World): void {
     }
   }
 
-  // Board boundary: left wall, right wall, bottom, and top so the play area is visible.
-  const wall = BOARD_WALL_BLOCK_ID;
+  // Solid boundary: always draw the inner frame at the board plane so the play area is clearly visible.
   for (let y = 0; y < BOARD_HEIGHT; y++) {
-    desired.set(cellKey(-1, y), wall);
-    desired.set(cellKey(BOARD_WIDTH, y), wall);
+    desired.set(cellKey(-1, y), BOARD_WALL_BLOCK_ID);
+    desired.set(cellKey(BOARD_WIDTH, y), BOARD_WALL_BLOCK_ID);
   }
   for (let x = 0; x < BOARD_WIDTH; x++) {
-    desired.set(cellKey(x, -1), wall);
-    desired.set(cellKey(x, BOARD_HEIGHT), wall);
+    desired.set(cellKey(x, -1), BOARD_WALL_BLOCK_ID);
+    desired.set(cellKey(x, BOARD_HEIGHT), BOARD_WALL_BLOCK_ID);
   }
+
+  // Procedural wall: seed-based layout (thickness + depth). Same seed => same wall each round.
+  const wallSeed = state.seed ?? state.rngState ?? 0;
+  const wallCells = getWallLayout(wallSeed);
+  const newWallKeys = new Set<string>();
+  for (const cell of wallCells) {
+    const pos = wallCellToWorld(cell, BOARD_ORIGIN);
+    newWallKeys.add(wallPosKey(pos.x, pos.y, pos.z));
+  }
+  for (const key of lastRenderedWall) {
+    if (!newWallKeys.has(key)) {
+      const [x, y, z] = key.split(',').map(Number);
+      world.chunkLattice.setBlock({ x, y, z }, 0);
+    }
+  }
+  for (const cell of wallCells) {
+    const pos = wallCellToWorld(cell, BOARD_ORIGIN);
+    const key = wallPosKey(pos.x, pos.y, pos.z);
+    world.chunkLattice.setBlock(pos, BOARD_WALL_BLOCK_ID);
+    newWallKeys.add(key);
+  }
+  lastRenderedWall = newWallKeys;
 
   const doFullRedraw = RENDER_FULL_REDRAW_EVERY_TICK || lastRendered.size === 0;
   const keysToApply = doFullRedraw ? desired.keys() : new Set([...lastRendered.keys(), ...desired.keys()]);
@@ -105,6 +134,13 @@ export function render(state: TetrisState, world: World): void {
 }
 
 /** Call when state is reset (e.g. new game) so we don't leave stale blocks. */
-export function clearRenderCache(): void {
+export function clearRenderCache(world?: World): void {
   lastRendered = new Map();
+  if (world && lastRenderedWall.size > 0) {
+    for (const key of lastRenderedWall) {
+      const [x, y, z] = key.split(',').map(Number);
+      world.chunkLattice.setBlock({ x, y, z }, 0);
+    }
+  }
+  lastRenderedWall = new Set();
 }
