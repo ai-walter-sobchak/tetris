@@ -8,6 +8,17 @@
 </head>
 <body>
   <div id="hud">
+    <div class="game-over-overlay" id="game-over-overlay" aria-hidden="true" aria-label="Game over">
+      <div class="game-over-card">
+        <h2 class="game-over-title">Game Over</h2>
+        <div class="game-over-stats">
+          <div class="game-over-stat"><span class="label">Score</span><span id="game-over-score">0</span></div>
+          <div class="game-over-stat"><span class="label">Lines</span><span id="game-over-lines">0</span></div>
+          <div class="game-over-stat"><span class="label">Best score</span><span id="game-over-best">0</span></div>
+        </div>
+        <button type="button" class="btn btn-new-game" id="btn-new-game" data-action="reset" aria-label="Start new game">Start New Game</button>
+      </div>
+    </div>
     <div class="leaderboard-panel" id="leaderboard-panel" aria-label="Global leaderboard">
       <div class="leaderboard-title">LEADERBOARD</div>
       <div class="leaderboard-meta">
@@ -21,7 +32,7 @@
         <div class="stat"><span class="label">Score</span><span id="score">0</span></div>
         <div class="stat"><span class="label">Level</span><span id="level">1</span></div>
         <div class="stat"><span class="label">Lines</span><span id="lines">0</span></div>
-        <div class="stat status"><span id="status">-</span></div>
+        <div class="stat status" id="stat-status" aria-hidden="true"><span id="status">-</span></div>
       </div>
       <p class="hint" id="hint">Click <strong>Start</strong> to begin the round. Then WASD or arrows move pieces (A/← left, D/→ right, W/↑ rotate, S/↓ soft drop). Space hard drop. R or Reset to restart.</p>
       <div class="start-area" id="start-area">

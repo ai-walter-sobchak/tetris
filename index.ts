@@ -3,6 +3,8 @@
  * Server-authoritative, tick-based gravity, solo-first. One world, one board, first player is controller.
  */
 
+import 'dotenv/config';
+import { logLeaderboardEnvStatus, checkSupabaseConnectivity } from './src/server/config/leaderboard.js';
 import {
   startServer,
   Audio,
@@ -27,7 +29,6 @@ import {
   submitScore,
   broadcastLeaderboard,
   startLeaderboardBroadcastInterval,
-  stopLeaderboardBroadcastInterval,
   refreshCache,
 } from './src/server/services/LeaderboardService.js';
 import {
@@ -78,6 +79,8 @@ startServer((world: World) => {
 
   world.start();
 
+  logLeaderboardEnvStatus();
+  checkSupabaseConnectivity().catch(() => {});
   startLeaderboardBroadcastInterval(world);
 
   const SOUNDTRACK_URI = 'audio/game-over.mp3';

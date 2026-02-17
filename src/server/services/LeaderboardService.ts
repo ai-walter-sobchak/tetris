@@ -83,20 +83,40 @@ function buildPayload(rows: LeaderboardRow[], selfPlayerId?: string): Leaderboar
   };
 }
 
+function formatFetchCause(err: unknown): string {
+  if (err == null) return '';
+  const cause = (err as { cause?: unknown }).cause;
+  if (cause instanceof Error && 'code' in cause) return ` (${(cause as Error & { code: string }).code})`;
+  if (cause) return ' (' + String(cause) + ')';
+  return '';
+}
+
 async function fetchTopNFromDb(): Promise<LeaderboardRow[]> {
   const client = await getClient();
   if (!client) return [];
 
-  const { data, error } = await client
-    .from('leaderboard_scores')
-    .select('player_id, best_score, best_score_at')
-    .order('best_score', { ascending: false })
-    .order('best_score_at', { ascending: true })
-    .limit(LEADERBOARD_TOP_N);
+  let data: unknown = null;
+  let error: { message?: string; cause?: unknown } | null = null;
+
+  try {
+    const result = await client
+      .from('leaderboard_scores')
+      .select('player_id, best_score, best_score_at')
+      .order('best_score', { ascending: false })
+      .order('best_score_at', { ascending: true })
+      .limit(LEADERBOARD_TOP_N);
+    data = result.data;
+    error = result.error;
+  } catch (err) {
+    if (typeof console !== 'undefined' && console.error) {
+      console.error('[Leaderboard] fetch top N failed:', err instanceof Error ? err.message : String(err), formatFetchCause(err));
+    }
+    return [];
+  }
 
   if (error) {
     if (typeof console !== 'undefined' && console.error) {
-      console.error('[Leaderboard] fetch top N failed:', error.message);
+      console.error('[Leaderboard] fetch top N failed:', error.message, formatFetchCause(error));
     }
     return [];
   }
@@ -106,10 +126,15 @@ async function fetchTopNFromDb(): Promise<LeaderboardRow[]> {
 
   const names = new Map<string, string>();
   const playerIds = data.map((r: { player_id: string }) => r.player_id);
-  const { data: players } = await client
-    .from('leaderboard_players')
-    .select('player_id, display_name')
-    .in('player_id', playerIds);
+  let players: unknown = null;
+  try {
+    const res = await client.from('leaderboard_players').select('player_id, display_name').in('player_id', playerIds);
+    players = res.data;
+  } catch (err) {
+    if (typeof console !== 'undefined' && console.error) {
+      console.error('[Leaderboard] fetch players failed:', err instanceof Error ? err.message : String(err), formatFetchCause(err));
+    }
+  }
 
   if (Array.isArray(players)) {
     for (const p of players) {
@@ -204,15 +229,24 @@ export async function submitScore(player: Player, score: number): Promise<void> 
 
   const displayName = typeof (player as { name?: string }).name === 'string' ? (player as { name?: string }).name : playerId;
 
-  const { error } = await client.rpc('submit_score', {
-    p_player_id: playerId,
-    p_display_name: displayName ?? '',
-    p_score: Math.floor(score),
-  });
+  let error: { message?: string; cause?: unknown } | null = null;
+  try {
+    const result = await client.rpc('submit_score', {
+      p_player_id: playerId,
+      p_display_name: displayName ?? '',
+      p_score: Math.floor(score),
+    });
+    error = result.error;
+  } catch (err) {
+    if (typeof console !== 'undefined' && console.error) {
+      console.error('[Leaderboard] submit_score failed:', err instanceof Error ? err.message : String(err), formatFetchCause(err));
+    }
+    return;
+  }
 
   if (error) {
     if (typeof console !== 'undefined' && console.error) {
-      console.error('[Leaderboard] submit_score failed:', error.message);
+      console.error('[Leaderboard] submit_score failed:', error.message, formatFetchCause(error));
     }
     return;
   }

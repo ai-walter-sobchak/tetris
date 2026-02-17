@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.96.0",
+    "dotenv": "^17.3.1",
     "hytopia": "^0.15.2"
   },
   "description": "Server-authoritative, voxel-rendered Tetris with a 10×20 board. Solo-first, mobile-friendly HUD, tick-based gravity.",

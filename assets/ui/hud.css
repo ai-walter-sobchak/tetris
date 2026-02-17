@@ -93,6 +93,88 @@ body {
   color: #f44;
 }
 
+/* ——— Game Over overlay (centered modal) ——— */
+.game-over-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  pointer-events: none;
+}
+
+.game-over-overlay.visible {
+  display: flex;
+  pointer-events: auto;
+}
+
+.game-over-card {
+  width: 100%;
+  max-width: 360px;
+  padding: 28px 24px;
+  background: rgba(20, 22, 28, 0.95);
+  border-radius: 14px;
+  color: #fff;
+  text-align: center;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.game-over-title {
+  margin: 0 0 20px;
+  font-size: 1.75rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: #f44;
+  text-transform: uppercase;
+}
+
+.game-over-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px 28px;
+  justify-content: center;
+  margin-bottom: 24px;
+}
+
+.game-over-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 80px;
+}
+
+.game-over-stat .label {
+  font-size: 0.9rem;
+  opacity: 0.9;
+  font-weight: 500;
+  margin-bottom: 4px;
+}
+
+.game-over-stat span:last-child {
+  font-size: 1.5rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.btn-new-game {
+  width: 100%;
+  min-height: 56px;
+  font-size: 1.2rem;
+  font-weight: 700;
+  background: rgba(40, 180, 80, 0.9);
+  border-color: rgba(255, 255, 255, 0.5);
+}
+
+.btn-new-game:active {
+  background: rgba(50, 200, 90, 0.95);
+}
+
 .btn {
   min-width: 52px;
   min-height: 52px;
