@@ -46,16 +46,7 @@ startServer((world: World) => {
   const state: TetrisState = createInitialState();
   let controllerPlayerId: string | null = null;
 
-  world.start();
-
-  // Game soundtrack (loops for the whole session)
-  new Audio({
-    uri: 'audio/game-over.mp3',
-    loop: true,
-    volume: 0.5,
-  }).play(world);
-
-  // Register block types 1..7 for tetromino colors (0 = air)
+  // Register block types before world.start() so chunk/world logic never sees unregistered IDs
   for (let id = 1; id <= 7; id++) {
     world.blockTypeRegistry.registerGenericBlockType({
       id,
@@ -74,18 +65,87 @@ startServer((world: World) => {
     textureUri: 'blocks/stone.png',
   });
 
+  world.start();
+
+  const SOUNDTRACK_URI = 'audio/game-over.mp3';
+  const soundtrack = new Audio({
+    uri: SOUNDTRACK_URI,
+    loop: true,
+    volume: 0.5,
+  });
+  soundtrack.play(world);
+
+  /** Stop and remove any non-soundtrack audio (footsteps, block crunch/collision SFX, etc.) so only the soundtrack plays. */
+  function muteNonSoundtrackAudio(): void {
+    const toRemove: Audio[] = [];
+    world.audioManager.getAllAudios().forEach((audio) => {
+      if (audio.uri !== SOUNDTRACK_URI) toRemove.push(audio);
+    });
+    toRemove.forEach((audio) => {
+      try {
+        world.audioManager.unregisterAudio(audio);
+      } catch {
+        audio.setVolume(0);
+        audio.pause();
+      }
+    });
+  }
+
+  let gameLoopStarted = false;
+  let gameLoopIntervalRef: ReturnType<typeof setInterval> | null = null;
+  let tickInProgress = false;
+  const tickIntervalMs = 1000 / TICKS_PER_SECOND;
+
+  /** Start the tick interval so actions (Start, R) are always consumed. Call when first player joins. */
+  function startTickInterval(): void {
+    if (gameLoopIntervalRef != null) return;
+    clearRenderCache();
+    render(state, world);
+    setTimeout(tick, 0);
+    gameLoopIntervalRef = setInterval(tick, tickIntervalMs);
+  }
+
+  /** Called when user clicks Start: enable gravity and game logic. */
+  function setGameStarted(): void {
+    if (gameLoopStarted) return;
+    gameLoopStarted = true;
+    clearRenderCache();
+    render(state, world);
+  }
+
+  function tick(): void {
+    if (tickInProgress) return;
+    tickInProgress = true;
+    try {
+      muteNonSoundtrackAudio(); // Strip any SFX (steps, crunch, etc.) before tick
+      runTick(world, state, controllerPlayerId, tickIntervalMs, gameLoopStarted);
+      PlayerManager.instance.getConnectedPlayersByWorld(world).forEach((player) => {
+        sendHudToPlayer(player, state, gameLoopStarted);
+      });
+      muteNonSoundtrackAudio(); // Again after tick so only soundtrack remains
+    } catch (err) {
+      clearRenderCache();
+      render(state, world);
+      if (typeof console !== 'undefined' && console.error) console.error('[Tetris] tick error', err);
+    } finally {
+      tickInProgress = false;
+    }
+  }
+
   world.on(PlayerEvent.JOINED_WORLD, ({ player }) => {
     player.ui.load('ui/index.html');
     if (controllerPlayerId == null) {
       controllerPlayerId = player.id;
     }
+    startTickInterval();
     player.ui.on(PlayerUIEvent.DATA, ({ data }: { data: Record<string, unknown> }) => {
       const action = data?.action as string | undefined;
       if (typeof action === 'string') {
         pushAction(player.id, action as Parameters<typeof pushAction>[1]);
+        if (action === 'start') setGameStarted();
       }
     });
-    sendHudToPlayer(player, state);
+    sendHudToPlayer(player, state, gameLoopStarted);
 
     // Force full board render so client sees current game state
     clearRenderCache();
@@ -96,7 +156,7 @@ startServer((world: World) => {
     const playerEntity = new DefaultPlayerEntity({
       player,
       name: 'Player',
-      gravityScale: 0, // float in space, don't fall
+      rigidBodyOptions: { gravityScale: 0 }, // float in space, don't fall
       controller: new DefaultPlayerEntityController({
         canWalk: () => false,
         canJump: () => false,
@@ -105,6 +165,10 @@ startServer((world: World) => {
       }),
     });
     playerEntity.spawn(world, PLAYER_SPAWN);
+    // Ensure gravity stays off (in case rigidBodyOptions wasn't applied to player body)
+    playerEntity.setGravityScale(0);
+    // Remove any entity-attached sounds (e.g. footstep/step) so only the soundtrack plays
+    world.audioManager.unregisterEntityAttachedAudios(playerEntity);
   });
 
   world.on(PlayerEvent.LEFT_WORLD, ({ player }) => {
@@ -122,14 +186,6 @@ startServer((world: World) => {
     }
   });
 
-  // Run Tetris at a fixed tick rate so blocks fall even if the world loop timing varies or doesn't run
-  const tickIntervalMs = 1000 / TICKS_PER_SECOND;
   clearRenderCache();
   render(state, world);
-  const gameLoopHandle = setInterval(() => {
-    runTick(world, state, controllerPlayerId, tickIntervalMs);
-    PlayerManager.instance.getConnectedPlayersByWorld(world).forEach((player) => {
-      sendHudToPlayer(player, state);
-    });
-  }, tickIntervalMs);
 });

@@ -5,8 +5,6 @@
  */
 
 (function () {
-  const PIECE_NAMES = { 1: 'I', 2: 'O', 3: 'T', 4: 'S', 5: 'Z', 6: 'J', 7: 'L' };
-
   function send(action) {
     if (typeof hytopia !== 'undefined' && hytopia.sendData) {
       hytopia.sendData({ action });
@@ -18,15 +16,25 @@
     if (data.score !== undefined) { var s = el('score'); if (s) s.textContent = data.score; }
     if (data.level !== undefined) { var l = el('level'); if (l) l.textContent = data.level; }
     if (data.lines !== undefined) { var n = el('lines'); if (n) n.textContent = data.lines; }
-    if (data.next !== undefined) {
-      var nextEl = el('next');
-      if (nextEl) nextEl.textContent = data.next ? PIECE_NAMES[data.next] || data.next : '-';
-    }
     if (data.status !== undefined) {
       var statusEl = el('status');
       if (statusEl) {
         statusEl.textContent = data.status;
         statusEl.setAttribute('data-status', data.status);
+      }
+    }
+    if (data.gameStarted !== undefined) {
+      var startArea = document.getElementById('start-area');
+      var controls = document.getElementById('controls');
+      var hint = document.getElementById('hint');
+      if (data.gameStarted) {
+        if (startArea) startArea.style.display = 'none';
+        if (controls) controls.style.display = '';
+        if (hint) hint.textContent = 'WASD or arrows: A/← left, D/→ right, W/↑ rotate, S/↓ soft drop. Space hard drop. R or Reset to restart.';
+      } else {
+        if (startArea) startArea.style.display = '';
+        if (controls) controls.style.display = 'none';
+        if (hint) hint.textContent = 'Click Start to begin the round.';
       }
     }
   }

@@ -14,6 +14,13 @@ import type { BoardGrid, PieceState, TetrisState } from './types.js';
 import { createRng } from '../util/rng.js';
 import type { PieceTypeId } from './types.js';
 
+/** RNG returns [0,1); ensure we always get 1..7 for piece type. */
+function randomPieceType(rng: () => number): PieceTypeId {
+  const n = Math.floor(rng() * 7);
+  const clamped = ((n % 7) + 7) % 7;
+  return (clamped + 1) as PieceTypeId;
+}
+
 let pieceIdCounter = 0;
 
 function createEmptyBoard(): BoardGrid {
@@ -42,9 +49,9 @@ export function createNextPiece(type: PieceTypeId): PieceState {
 /** Create initial state for a new game. Starts with one piece already active so no R is needed. */
 export function createInitialState(seed?: number): TetrisState {
   const rngObj = createRng(seed);
-  const firstType = (Math.floor(rngObj.next() * 7) + 1) as PieceTypeId;
+  const firstType = randomPieceType(() => rngObj.next());
   const activePiece = createPiece(firstType, SPAWN_X, SPAWN_Y);
-  const secondType = (Math.floor(rngObj.next() * 7) + 1) as PieceTypeId;
+  const secondType = randomPieceType(() => rngObj.next());
   const nextPiece = createNextPiece(secondType);
   return {
     gameStatus: 'RUNNING',
@@ -85,16 +92,16 @@ export function resetState(state: TetrisState, seed?: number): void {
 export function spawnNextPiece(state: TetrisState, rng: () => number): PieceState | null {
   let next = state.nextPiece;
   if (!next) {
-    const nextType = (Math.floor(rng() * 7) + 1) as PieceTypeId;
+    const nextType = randomPieceType(rng);
     state.nextPiece = createNextPiece(nextType);
     next = state.nextPiece;
   }
 
-  const active = createPiece(next.type, SPAWN_X, SPAWN_Y);
+  const type = (next.type >= 1 && next.type <= 7 ? next.type : 1) as PieceTypeId;
+  const active = createPiece(type, SPAWN_X, SPAWN_Y);
   active.rotation = 0;
 
-  // Generate next "next" piece
-  const nextType = (Math.floor(rng() * 7) + 1) as PieceTypeId;
+  const nextType = randomPieceType(rng);
   state.nextPiece = createNextPiece(nextType);
 
   state.activePiece = active;

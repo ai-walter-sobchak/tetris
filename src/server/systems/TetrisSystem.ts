@@ -74,7 +74,8 @@ const SHAPES: Record<PieceTypeId, Shape4x4[]> = {
 
 /** Get world (board) cell coordinates occupied by the piece (without checking bounds). */
 export function getPieceCells(piece: PieceState): Array<{ x: number; y: number }> {
-  const rotations = SHAPES[piece.type as PieceTypeId];
+  const type = (piece.type >= 1 && piece.type <= 7 ? piece.type : 1) as PieceTypeId;
+  const rotations = SHAPES[type];
   if (!rotations) return [];
   const shape = rotations[piece.rotation % 4];
   if (!shape) return [];
@@ -173,6 +174,9 @@ function mergeAndClearLines(state: TetrisState): number {
   fullRows.sort((a, b) => b - a);
   for (const row of fullRows) {
     state.board.splice(row, 1);
+    state.board.push(Array(BOARD_WIDTH).fill(0));
+  }
+  while (state.board.length < BOARD_HEIGHT) {
     state.board.push(Array(BOARD_WIDTH).fill(0));
   }
 

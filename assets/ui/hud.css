@@ -148,6 +148,25 @@ body {
   min-width: 72px;
 }
 
+.start-area {
+  margin-top: 16px;
+  display: flex;
+  justify-content: center;
+}
+
+.btn.start {
+  font-size: 1.25rem;
+  min-width: 160px;
+  min-height: 56px;
+  font-weight: 700;
+  background: rgba(40, 180, 80, 0.9);
+  border-color: rgba(255, 255, 255, 0.5);
+}
+
+.btn.start:active {
+  background: rgba(50, 200, 90, 0.95);
+}
+
 @media (min-width: 600px) {
   .btn {
     min-width: 48px;

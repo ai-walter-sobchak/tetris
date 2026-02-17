@@ -13,12 +13,14 @@
         <div class="stat"><span class="label">Score</span><span id="score">0</span></div>
         <div class="stat"><span class="label">Level</span><span id="level">1</span></div>
         <div class="stat"><span class="label">Lines</span><span id="lines">0</span></div>
-        <div class="stat"><span class="label">Next</span><span id="next">-</span></div>
-        <div class="stat status"><span id="status">RUNNING</span></div>
+        <div class="stat status"><span id="status">-</span></div>
       </div>
-      <p class="hint">Turn to face the wall — WASD or arrows move pieces (A/← left, D/→ right, W/↑ rotate, S/↓ soft drop). Space hard drop. R or Reset to restart.</p>
+      <p class="hint" id="hint">Click <strong>Start</strong> to begin the round. Then WASD or arrows move pieces (A/← left, D/→ right, W/↑ rotate, S/↓ soft drop). Space hard drop. R or Reset to restart.</p>
+      <div class="start-area" id="start-area">
+        <button type="button" class="btn start" id="btn-start" data-action="start" aria-label="Start game">Start</button>
+      </div>
     </div>
-    <div class="controls">
+    <div class="controls" id="controls" style="display: none;">
       <button type="button" class="btn left" data-action="left" aria-label="Left">←</button>
       <button type="button" class="btn right" data-action="right" aria-label="Right">→</button>
       <button type="button" class="btn rotate" data-action="rotate" aria-label="Rotate">↻</button>

@@ -9,6 +9,9 @@ import { PIECE_TYPE_TO_BLOCK_ID } from '../config/tetris.js';
 import type { TetrisState } from '../state/types.js';
 import { getPieceCells } from './TetrisSystem.js';
 
+/** When true, every tick does a full redraw (no diff). Safer if engine batches setBlock. */
+export const RENDER_FULL_REDRAW_EVERY_TICK = true;
+
 /** Cell key "x,y" for tracking. */
 function cellKey(x: number, y: number): string {
   return `${x},${y}`;
@@ -21,11 +24,13 @@ let lastRendered: Map<string, number> = new Map();
  * Compute desired block id at grid (x,y): 0 = air, 1..7 = piece type.
  */
 function getDesiredCell(state: TetrisState, x: number, y: number): number {
-  // Active piece
+  // Active piece (use 1..7 for block id; 0 would render as air)
   if (state.activePiece) {
     const cells = getPieceCells(state.activePiece);
+    const type = state.activePiece.type;
+    const safeType = type >= 1 && type <= 7 ? type : 1;
     for (const c of cells) {
-      if (c.x === x && c.y === y) return state.activePiece.type;
+      if (c.x === x && c.y === y) return safeType;
     }
   }
   // Board
@@ -46,11 +51,19 @@ function gridToWorld(gx: number, gy: number): { x: number; y: number; z: number 
   };
 }
 
+/** Valid block IDs we may write (0 = air; others from config). */
+const VALID_BLOCK_IDS = new Set([0, 1, 2, 3, 4, 5, 6, 7, BOARD_WALL_BLOCK_ID]);
+
 /**
  * Render full board + active piece to world blocks.
  * Uses incremental update: only setBlock where value changed; clear others to 0 (air).
+ * When RENDER_FULL_REDRAW_EVERY_TICK is true, writes every cell each tick (robust if engine batches).
  */
 export function render(state: TetrisState, world: World): void {
+  // Guard: avoid throw on malformed board and prevent silent wrong state
+  if (!state.board?.length || !state.board[0]) return;
+  if (state.board.length !== BOARD_HEIGHT || state.board[0].length !== BOARD_WIDTH) return;
+
   const desired = new Map<string, number>();
   const width = state.board[0].length;
   const height = state.board.length;
@@ -74,13 +87,15 @@ export function render(state: TetrisState, world: World): void {
     desired.set(cellKey(x, BOARD_HEIGHT), wall);
   }
 
-  // Apply diffs: clear or set only changed cells
-  const allKeys = new Set([...lastRendered.keys(), ...desired.keys()]);
-  for (const key of allKeys) {
-    const [x, y] = key.split(',').map(Number);
-    const prev = lastRendered.get(key);
+  const doFullRedraw = RENDER_FULL_REDRAW_EVERY_TICK || lastRendered.size === 0;
+  const keysToApply = doFullRedraw ? desired.keys() : new Set([...lastRendered.keys(), ...desired.keys()]);
+
+  for (const key of keysToApply) {
     const next = desired.get(key) ?? 0;
-    if (prev !== next) {
+    const prev = lastRendered.get(key);
+    if (doFullRedraw || prev !== next) {
+      if (!VALID_BLOCK_IDS.has(next)) continue; // guard: never write invalid block id
+      const [x, y] = key.split(',').map(Number);
       const pos = gridToWorld(x, y);
       world.chunkLattice.setBlock(pos, next);
     }
