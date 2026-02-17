@@ -68,7 +68,7 @@ function drawYeehawSimple(grid: number[][], startRow: number): void {
     '#....#', '#....#', '#....#', '#....#', '######', '######', '#....#', '#....#', '#....#', '#....#',
   ];
   const A = [
-    '..#..#', '.#..#.', '#....#', '#....#', '######', '######', '#....#', '#....#', '#....#', '#....#',
+    '..##..', '.#..#.', '#....#', '######', '#....#', '#....#', '#....#', '#....#', '#....#', '#....#',
   ];
   const W = [
     '#....#', '#....#', '#....#', '#..#.#', '#.#.#.', '##..##', '#....#', '#....#', '#....#', '#....#',
@@ -111,6 +111,11 @@ export const YEEHAW_WALL_48_B: number[][] = buildVariantB();
 /** Default export: recommended variant (B). */
 export const YEEHAW_WALL_48: number[][] = YEEHAW_WALL_48_B;
 
+/** Machine-readable mural: 0=bg, 1=fg, 2=shadow(optional). */
+export function getMuralJson(grid: number[][]): { width: number; height: number; pixels: number[][] } {
+  return { width: W, height: H, pixels: grid.map(row => [...row]) };
+}
+
 /** ASCII preview: # = fg, . = bg, + = shadow. Row/col indices every 8. */
 export function toAscii(grid: number[][]): string {
   const lines: string[] = [];
@@ -123,3 +128,30 @@ export function toAscii(grid: number[][]): string {
   });
   return lines.join('\n');
 }
+
+// ---------------------------------------------------------------------------
+// INTEGRATION SNIPPET — render 48×48 mural as left wall with a generic tile API
+// ---------------------------------------------------------------------------
+// Assume: setTile(x: number, y: number, tileId: number) places one tile at (x,y).
+// Map pixel values to tile IDs:
+//
+//   const TILE_BG = 0;       // or your background wall block id
+//   const TILE_FG = 15;       // or your foreground mural block id
+//   const TILE_SHADOW = 14;   // optional, if using value 2
+//
+//   import { YEEHAW_WALL_48 } from './YeehawWall48.js';
+//
+//   function renderYeehawMural(wallX: number, wallY: number): void {
+//     const mural = YEEHAW_WALL_48;
+//     for (let row = 0; row < mural.length; row++) {
+//       for (let col = 0; col < mural[row].length; col++) {
+//         const v = mural[row][col];
+//         const tileId = v === 0 ? TILE_BG : v === 2 ? TILE_SHADOW : TILE_FG;
+//         setTile(wallX + col, wallY + row, tileId);
+//       }
+//     }
+//   }
+//
+//   // Example: anchor top-left of mural at (0, 0) for left wall
+//   renderYeehawMural(0, 0);
+// ---------------------------------------------------------------------------
