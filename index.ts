@@ -7,16 +7,7 @@ import 'dotenv/config';
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import { logLeaderboardEnvStatus, checkSupabaseConnectivity } from './src/server/config/leaderboard.js';
-import {
-  startServer,
-  Audio,
-  DefaultPlayerEntity,
-  DefaultPlayerEntityController,
-  PlayerEvent,
-  PlayerManager,
-  PlayerUIEvent,
-  RigidBodyType,
-} from 'hytopia';
+import { startServer, Audio, PlayerEvent, PlayerManager, PlayerUIEvent } from 'hytopia';
 import type { World, WorldMap } from 'hytopia';
 import { createInitialState } from './src/server/state/WorldState.js';
 import type { TetrisState } from './src/server/state/types.js';
@@ -47,20 +38,11 @@ import { clearPlayer } from './src/server/systems/InputSystem.js';
 import { tickBoundaryLava } from './src/server/systems/LavafallSystem.js';
 import type { LavafallState } from './src/server/systems/LavafallSystem.js';
 
-const PLAYER_SPAWN = { x: 4, y: 10, z: 6 };
+/** Camera position (no player entity — fixed view for Tetris). */
+const CAMERA_POSITION = { x: 4, y: 10, z: 6 };
 
-/** Block type id for spawn platform (floor). */
+/** Block type id for floor (used by map). */
 const FLOOR_BLOCK_ID = 8;
-
-/** Build a small 5x3 platform under the player spawn so they land on it without blocking the board view. */
-function placeSpawnPlatform(world: World): void {
-  const y = PLAYER_SPAWN.y - 1; // block below feet
-  for (let x = PLAYER_SPAWN.x - 2; x <= PLAYER_SPAWN.x + 2; x++) {
-    for (let z = PLAYER_SPAWN.z - 1; z <= PLAYER_SPAWN.z + 1; z++) {
-      world.chunkLattice.setBlock({ x, y, z }, FLOOR_BLOCK_ID);
-    }
-  }
-}
 
 /** Path to the arena map (loaded so the room is not empty). */
 const MAP_PATH = join(process.cwd(), 'assets', 'map.json');
@@ -224,24 +206,8 @@ startServer((world: World) => {
     clearRenderCache(world);
     render(state, world);
 
-    // No platform: player floats at spawn so the board view isn't blocked (gravity disabled)
-    // placeSpawnPlatform(world);
-    const playerEntity = new DefaultPlayerEntity({
-      player,
-      name: 'Player',
-      rigidBodyOptions: { type: RigidBodyType.DYNAMIC, gravityScale: 0 }, // float in space, don't fall
-      controller: new DefaultPlayerEntityController({
-        canWalk: () => false,
-        canJump: () => false,
-        canRun: () => false,
-        canSwim: () => false,
-      }),
-    });
-    playerEntity.spawn(world, PLAYER_SPAWN);
-    // Ensure gravity stays off (in case rigidBodyOptions wasn't applied to player body)
-    playerEntity.setGravityScale(0);
-    // Remove any entity-attached sounds (e.g. footstep/step) so only the soundtrack plays
-    world.audioManager.unregisterEntityAttachedAudios(playerEntity);
+    // No player entity: fix camera at the same view position so it doesn't get in the way
+    player.camera.setAttachedToPosition(CAMERA_POSITION);
   });
 
   world.on(PlayerEvent.LEFT_WORLD, ({ player }) => {
@@ -249,7 +215,6 @@ startServer((world: World) => {
     if (controllerPlayerId === player.id) {
       controllerPlayerId = null;
     }
-    world.entityManager.getPlayerEntitiesByPlayer(player).forEach((e) => e.despawn());
   });
 
   world.on(PlayerEvent.CHAT_MESSAGE_SEND, ({ player, message }) => {
