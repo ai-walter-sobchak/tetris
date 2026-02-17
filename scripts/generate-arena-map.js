@@ -125,21 +125,6 @@ for (let x = -2; x <= 11; x++) {
   }
 }
 
-// Monitor mount panel (right wall at ROOM_MAX_X, inset z 12..20, y 6..15)
-for (let y = 6; y <= 15; y++) {
-  for (let z = 12; z <= 20; z++) {
-    set(ROOM_MAX_X, y, z, BLOCK.TRIM);
-  }
-}
-for (let y = 5; y <= 16; y++) {
-  set(ROOM_MAX_X, y, 11, BLOCK.ACCENT);
-  set(ROOM_MAX_X, y, 21, BLOCK.ACCENT);
-}
-for (let z = 11; z <= 21; z++) {
-  set(ROOM_MAX_X, 5, z, BLOCK.ACCENT);
-  set(ROOM_MAX_X, 16, z, BLOCK.ACCENT);
-}
-
 // Four corner pillars (oak-log)
 const corners = [[ROOM_MIN_X, ROOM_MIN_Z], [ROOM_MIN_X, ROOM_MAX_Z], [ROOM_MAX_X, ROOM_MIN_Z], [ROOM_MAX_X, ROOM_MAX_Z]];
 for (const [px, pz] of corners) {
