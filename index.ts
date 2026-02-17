@@ -35,10 +35,17 @@ import {
 } from './src/server/services/LeaderboardService.js';
 import {
   BLOCK_TEXTURE_URIS,
+  BOARD_HEIGHT,
+  BOARD_ORIGIN,
+  BOARD_WIDTH,
   BOARD_WALL_BLOCK_ID,
   TICKS_PER_SECOND,
+  WALL_DEPTH,
+  WALL_DEPTH_BACK,
 } from './src/server/config/tetris.js';
 import { clearPlayer } from './src/server/systems/InputSystem.js';
+import { tickBoundaryLava } from './src/server/systems/LavafallSystem.js';
+import type { LavafallState } from './src/server/systems/LavafallSystem.js';
 
 const PLAYER_SPAWN = { x: 4, y: 10, z: 6 };
 
@@ -91,6 +98,16 @@ startServer((world: World) => {
     textureUri: 'blocks/oak-log', // board frame = oak (multi-texture)
   });
 
+  const LAVA_FRAME_IDS = [201, 202, 203, 204];
+  const LAVA_TEXTURES = ['blocks/lava.png', 'blocks/lava.png', 'blocks/lava-stone.png', 'blocks/lava.png'];
+  LAVA_FRAME_IDS.forEach((id, i) => {
+    world.blockTypeRegistry.registerGenericBlockType({
+      id,
+      name: `lava_frame_${i + 1}`,
+      textureUri: LAVA_TEXTURES[i] ?? 'blocks/lava.png',
+    });
+  });
+
   world.start();
 
   logLeaderboardEnvStatus();
@@ -121,6 +138,12 @@ startServer((world: World) => {
       }
     });
   }
+
+  const lavaState: LavafallState = { lastMs: 0, frame: 0 };
+  const LAVA_TICK_MS = 120;
+  const boundaryZOffsets: number[] = [];
+  for (let z = -WALL_DEPTH_BACK; z < 0; z++) boundaryZOffsets.push(z);
+  for (let z = 0; z < WALL_DEPTH; z++) boundaryZOffsets.push(z);
 
   let gameLoopStarted = false;
   let gameLoopIntervalRef: ReturnType<typeof setInterval> | null = null;
@@ -165,6 +188,12 @@ startServer((world: World) => {
         sendHudToPlayer(player, state, gameLoopStarted);
       });
       muteNonSoundtrackAudio(); // Again after tick so only soundtrack remains
+      const now = Date.now();
+      if (now - lavaState.lastMs >= LAVA_TICK_MS) {
+        lavaState.frame = (lavaState.frame + 1) % LAVA_FRAME_IDS.length;
+        lavaState.lastMs = now;
+      }
+      tickBoundaryLava(world, lavaState.frame, LAVA_FRAME_IDS, BOARD_ORIGIN, BOARD_WIDTH, BOARD_HEIGHT, boundaryZOffsets);
     } catch (err) {
       clearRenderCache(world);
       render(state, world);

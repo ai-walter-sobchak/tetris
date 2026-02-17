@@ -84,15 +84,7 @@ export function render(state: TetrisState, world: World): void {
     }
   }
 
-  // Solid boundary: inner frame at the board plane (all oak). Torches are spawned as entities in index.ts.
-  for (let y = 0; y < BOARD_HEIGHT; y++) {
-    desired.set(cellKey(-1, y), BOARD_WALL_BLOCK_ID);
-    desired.set(cellKey(BOARD_WIDTH, y), BOARD_WALL_BLOCK_ID);
-  }
-  for (let x = 0; x < BOARD_WIDTH; x++) {
-    desired.set(cellKey(x, -1), BOARD_WALL_BLOCK_ID);
-    desired.set(cellKey(x, BOARD_HEIGHT), BOARD_WALL_BLOCK_ID);
-  }
+  // Board boundary: drawn as animated lava by LavafallSystem.tickBoundaryLava (not oak).
 
   // Procedural wall: seed-based layout (thickness + depth). Same seed => same wall each round.
   const wallSeed = state.seed ?? state.rngState ?? 0;
