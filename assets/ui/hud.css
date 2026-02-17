@@ -1,0 +1,161 @@
+/* Tetris HUD — mobile-friendly, large touch targets */
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  font-family: system-ui, -apple-system, sans-serif;
+  background: transparent;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+#hud {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px;
+}
+
+#hud > * {
+  pointer-events: auto;
+}
+
+.top {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+}
+
+.stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  align-items: center;
+  justify-content: center;
+  padding: 12px 20px;
+  background: rgba(0, 0, 0, 0.75);
+  border-radius: 10px;
+  color: #fff;
+  width: 100%;
+  max-width: 420px;
+  margin: 0 auto;
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  min-width: 64px;
+  align-items: center;
+}
+
+.stat .label {
+  font-size: 0.95rem;
+  opacity: 0.95;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+
+.stat span:last-child {
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+.stat.status span {
+  font-size: 1.1rem;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+.hint {
+  text-align: center;
+  padding: 8px 16px;
+  margin-top: 8px;
+  font-size: 0.9rem;
+  color: rgba(255, 255, 255, 0.9);
+  background: rgba(0, 0, 0, 0.5);
+  border-radius: 8px;
+  max-width: 420px;
+}
+
+.stat.status span[data-status="GAME_OVER"] {
+  color: #f44;
+}
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: center;
+  align-items: center;
+  padding: 12px;
+  background: rgba(0, 0, 0, 0.5);
+  border-radius: 12px;
+  max-width: 400px;
+  margin: 0 auto;
+}
+
+.btn {
+  min-width: 52px;
+  min-height: 52px;
+  padding: 12px;
+  font-size: 1.5rem;
+  border: 2px solid rgba(255, 255, 255, 0.4);
+  border-radius: 10px;
+  background: rgba(60, 60, 80, 0.9);
+  color: #fff;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  transition: background 0.1s, transform 0.05s;
+}
+
+.btn:active {
+  background: rgba(80, 80, 120, 0.95);
+  transform: scale(0.96);
+}
+
+.btn.left,
+.btn.right {
+  font-size: 1.75rem;
+}
+
+.btn.rotate {
+  font-size: 1.5rem;
+}
+
+.btn.soft-drop {
+  font-size: 1.75rem;
+}
+
+.btn.hard-drop {
+  font-size: 1.25rem;
+}
+
+.btn.reset {
+  font-size: 0.95rem;
+  min-width: 72px;
+}
+
+@media (min-width: 600px) {
+  .btn {
+    min-width: 48px;
+    min-height: 48px;
+    font-size: 1.35rem;
+  }
+  .btn.reset {
+    min-width: 64px;
+    font-size: 0.85rem;
+  }
+}

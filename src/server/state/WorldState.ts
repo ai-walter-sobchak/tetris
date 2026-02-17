@@ -1,0 +1,102 @@
+/**
+ * World state container for one Tetris game.
+ * Creates and resets state; does not run game logic.
+ */
+
+import {
+  BOARD_WIDTH,
+  BOARD_HEIGHT,
+  GRAVITY_BASE_MS,
+  SPAWN_X,
+  SPAWN_Y,
+} from '../config/tetris.js';
+import type { BoardGrid, PieceState, TetrisState } from './types.js';
+import { createRng } from '../util/rng.js';
+import type { PieceTypeId } from './types.js';
+
+let pieceIdCounter = 0;
+
+function createEmptyBoard(): BoardGrid {
+  const grid: BoardGrid = [];
+  for (let y = 0; y < BOARD_HEIGHT; y++) {
+    grid.push(Array(BOARD_WIDTH).fill(0));
+  }
+  return grid;
+}
+
+function createPiece(type: PieceTypeId, x: number, y: number): PieceState {
+  return {
+    id: `p${++pieceIdCounter}`,
+    type,
+    rotation: 0,
+    x,
+    y,
+  };
+}
+
+/** Create a new piece for the "next" queue (rotation 0, position doesn't matter for next). */
+export function createNextPiece(type: PieceTypeId): PieceState {
+  return createPiece(type, 0, 0);
+}
+
+/** Create initial state for a new game. Starts with one piece already active so no R is needed. */
+export function createInitialState(seed?: number): TetrisState {
+  const rngObj = createRng(seed);
+  const firstType = (Math.floor(rngObj.next() * 7) + 1) as PieceTypeId;
+  const activePiece = createPiece(firstType, SPAWN_X, SPAWN_Y);
+  const secondType = (Math.floor(rngObj.next() * 7) + 1) as PieceTypeId;
+  const nextPiece = createNextPiece(secondType);
+  return {
+    gameStatus: 'RUNNING',
+    board: createEmptyBoard(),
+    activePiece,
+    nextPiece,
+    score: 0,
+    level: 1,
+    lines: 0,
+    gravityAccumulatorMs: 0,
+    gravityIntervalMs: GRAVITY_BASE_MS,
+    softDropActive: false,
+    seed,
+    rngState: rngObj.getState(),
+    lastLinesCleared: 0,
+  };
+}
+
+/** Reset to a new game (same seed optional). */
+export function resetState(state: TetrisState, seed?: number): void {
+  const s = createInitialState(seed ?? state.seed);
+  state.gameStatus = s.gameStatus;
+  state.board = s.board;
+  state.activePiece = s.activePiece;
+  state.nextPiece = s.nextPiece;
+  state.score = s.score;
+  state.level = s.level;
+  state.lines = s.lines;
+  state.gravityAccumulatorMs = s.gravityAccumulatorMs;
+  state.gravityIntervalMs = s.gravityIntervalMs;
+  state.softDropActive = false;
+  state.seed = s.seed;
+  state.rngState = s.rngState;
+  state.lastLinesCleared = s.lastLinesCleared;
+}
+
+/** Spawn the next piece onto the board; returns the new active piece or null if spawn collides (game over). */
+export function spawnNextPiece(state: TetrisState, rng: () => number): PieceState | null {
+  let next = state.nextPiece;
+  if (!next) {
+    const nextType = (Math.floor(rng() * 7) + 1) as PieceTypeId;
+    state.nextPiece = createNextPiece(nextType);
+    next = state.nextPiece;
+  }
+
+  const active = createPiece(next.type, SPAWN_X, SPAWN_Y);
+  active.rotation = 0;
+
+  // Generate next "next" piece
+  const nextType = (Math.floor(rng() * 7) + 1) as PieceTypeId;
+  state.nextPiece = createNextPiece(nextType);
+
+  state.activePiece = active;
+  return active;
+}

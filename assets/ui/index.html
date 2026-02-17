@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
+  <title>Tetris HUD</title>
+  <link rel="stylesheet" href="{{CDN_ASSETS_URL}}/ui/hud.css" />
+</head>
+<body>
+  <div id="hud">
+    <div class="top">
+      <div class="stats">
+        <div class="stat"><span class="label">Score</span><span id="score">0</span></div>
+        <div class="stat"><span class="label">Level</span><span id="level">1</span></div>
+        <div class="stat"><span class="label">Lines</span><span id="lines">0</span></div>
+        <div class="stat"><span class="label">Next</span><span id="next">-</span></div>
+        <div class="stat status"><span id="status">RUNNING</span></div>
+      </div>
+      <p class="hint">Turn to face the wall — WASD or arrows move pieces (A/← left, D/→ right, W/↑ rotate, S/↓ soft drop). Space hard drop. R or Reset to restart.</p>
+    </div>
+    <div class="controls">
+      <button type="button" class="btn left" data-action="left" aria-label="Left">←</button>
+      <button type="button" class="btn right" data-action="right" aria-label="Right">→</button>
+      <button type="button" class="btn rotate" data-action="rotate" aria-label="Rotate">↻</button>
+      <button type="button" class="btn soft-drop" data-action="softDropDown" aria-label="Soft drop">↓</button>
+      <button type="button" class="btn hard-drop" data-action="hardDrop" aria-label="Hard drop">⏬</button>
+      <button type="button" class="btn reset" data-action="reset" aria-label="Reset">Reset</button>
+    </div>
+  </div>
+  <script src="{{CDN_ASSETS_URL}}/ui/hud.js"></script>
+</body>
+</html>

@@ -1,0 +1,28 @@
+{
+  "name": "tetris-hytopia",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "hytopia build",
+    "start": "hytopia start",
+    "dev": "hytopia dev",
+    "package": "hytopia package",
+    "upgrade-assets-library": "hytopia upgrade-assets-library",
+    "upgrade-project": "hytopia upgrade-project"
+  },
+  "dependencies": {
+    "hytopia": "^0.15.2"
+  },
+  "description": "Server-authoritative, voxel-rendered Tetris with a 10×20 board. Solo-first, mobile-friendly HUD, tick-based gravity.",
+  "main": "index.js",
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "typescript": "^5.9.3"
+  },
+  "optionalDependencies": {
+    "@hytopia.com/assets": "^0.4.11"
+  }
+}
