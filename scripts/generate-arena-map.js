@@ -1,22 +1,24 @@
 #!/usr/bin/env node
 /**
- * Generate assets/map.json for the Tetris arcade room.
- * Block IDs: 8=floor (stone), 15=wall (stone), 11=oak-log (trim/pillars), 5=accent (red), 12=sand (stage).
- * Indoor variety: full floor checkerboard (stone + sand), wall wainscoting,
- * ceiling edge trim, back wall base strip.
- * Clearance: no blocks at x in [-3,12], y in [-4,22], z in [-2,1] (board + procedural walls).
+ * Generate assets/map.json for the multi-player Tetris game arena.
+ * One shared arena containing 8 plot areas; each plot has a clearance where
+ * the server draws the procedural board + walls at runtime.
+ *
+ * Layout must match PlotManager: PLOT_COLS=4, PLOT_ROWS=2, PLOT_SPACING_X=40, PLOT_SPACING_Z=28,
+ * PLOT_ORIGIN_BASE=(0,0,0). Per-plot clearance (board + walls): x in [ox-3, ox+12], y in [-4,22], z in [oz-2, oz+1].
+ *
+ * Block IDs: 8=floor, 15=wall (stone), 11=oak-log (trim), 5=accent, 12=sand (stage).
  */
 
-// Smaller arena: reduced width and depth (was 60×55, now 43×45)
-const ROOM_MIN_X = -18;
-const ROOM_MAX_X = 24;
-const ROOM_MIN_Z = -22;
-const ROOM_MAX_Z = 22;
-const WALL_Y_LO = 1;
-const WALL_Y_HI = 20;
-const CEILING_Y = 21;
-const FLOOR_Y = 0;
+const PLOT_COLS = 4;
+const PLOT_ROWS = 2;
+const PLOT_SPACING_X = 40;
+const PLOT_SPACING_Z = 28;
+const PLOT_ORIGIN_X = 0;
+const PLOT_ORIGIN_Y = 0;
+const PLOT_ORIGIN_Z = 0;
 
+// Per-plot clearance in local coords (same as PlotManager bounds)
 const BOARD_X_LO = -3;
 const BOARD_X_HI = 12;
 const BOARD_Y_LO = -4;
@@ -24,8 +26,35 @@ const BOARD_Y_HI = 22;
 const BOARD_Z_LO = -2;
 const BOARD_Z_HI = 1;
 
-function inClearance(x, y, z) {
-  return x >= BOARD_X_LO && x <= BOARD_X_HI && y >= BOARD_Y_LO && y <= BOARD_Y_HI && z >= BOARD_Z_LO && z <= BOARD_Z_HI;
+const MARGIN = 20;
+const WALL_Y_LO = 1;
+const WALL_Y_HI = 20;
+const CEILING_Y = 21;
+const FLOOR_Y = 0;
+
+// World bounds that contain all 8 plots plus margin
+const LAST_PLOT_X = PLOT_ORIGIN_X + (PLOT_COLS - 1) * PLOT_SPACING_X;
+const LAST_PLOT_Z = PLOT_ORIGIN_Z + (PLOT_ROWS - 1) * PLOT_SPACING_Z;
+const ROOM_MIN_X = PLOT_ORIGIN_X - MARGIN;
+const ROOM_MAX_X = LAST_PLOT_X + BOARD_X_HI + MARGIN;
+const ROOM_MIN_Z = PLOT_ORIGIN_Z - MARGIN;
+const ROOM_MAX_Z = LAST_PLOT_Z + BOARD_Z_HI + MARGIN;
+
+function isInAnyPlotClearance(x, y, z) {
+  for (let row = 0; row < PLOT_ROWS; row++) {
+    for (let col = 0; col < PLOT_COLS; col++) {
+      const ox = PLOT_ORIGIN_X + col * PLOT_SPACING_X;
+      const oz = PLOT_ORIGIN_Z + row * PLOT_SPACING_Z;
+      if (
+        x >= ox + BOARD_X_LO && x <= ox + BOARD_X_HI &&
+        y >= PLOT_ORIGIN_Y + BOARD_Y_LO && y <= PLOT_ORIGIN_Y + BOARD_Y_HI &&
+        z >= oz + BOARD_Z_LO && z <= oz + BOARD_Z_HI
+      ) {
+        return true;
+      }
+    }
+  }
+  return false;
 }
 
 const BLOCK = {
@@ -39,38 +68,37 @@ const BLOCK = {
 const blocks = {};
 
 function set(x, y, z, id) {
-  if (inClearance(x, y, z)) return;
+  if (isInAnyPlotClearance(x, y, z)) return;
   blocks[`${x},${y},${z}`] = id;
 }
 
-// Floor (y=0): checkerboard of stone (8) and sand (12) across the entire room (game overwrites board/wall cells at runtime).
-// Use ((x+z)%2+2)%2 so negative coordinates alternate correctly (JS % can return -1).
+// Floor (y=0): checkerboard across entire arena, except inside any plot clearance
 for (let x = ROOM_MIN_X; x <= ROOM_MAX_X; x++) {
   for (let z = ROOM_MIN_Z; z <= ROOM_MAX_Z; z++) {
+    if (isInAnyPlotClearance(x, FLOOR_Y, z)) continue;
     const isSand = ((x + z) % 2 + 2) % 2 === 1;
     blocks[`${x},${FLOOR_Y},${z}`] = isSand ? BLOCK.STAGE : BLOCK.FLOOR;
   }
 }
 
-// Back wall (z = ROOM_MIN_Z) with hole for backplate; two strips
+// Back wall (z = ROOM_MIN_Z)
 for (let y = WALL_Y_LO; y <= WALL_Y_HI; y++) {
   for (let x = ROOM_MIN_X; x <= ROOM_MAX_X; x++) {
-    if (x >= -6 && x <= 15) continue; // hole for backplate
     set(x, y, ROOM_MIN_Z, BLOCK.WALL);
   }
 }
-// Back wall base strip (oak kick plate) where the wall exists
 for (let x = ROOM_MIN_X; x <= ROOM_MAX_X; x++) {
-  if (x >= -6 && x <= 15) continue;
   set(x, 1, ROOM_MIN_Z, BLOCK.TRIM);
 }
 
-// Backplate inset (z = ROOM_MIN_Z + 1)
-for (let x = -6; x <= 15; x++) {
-  for (let y = -2; y <= 22; y++) {
-    if (inClearance(x, y, ROOM_MIN_Z + 1)) continue;
-    set(x, y, ROOM_MIN_Z + 1, BLOCK.TRIM);
+// Front wall (z = ROOM_MAX_Z)
+for (let y = WALL_Y_LO; y <= WALL_Y_HI; y++) {
+  for (let x = ROOM_MIN_X; x <= ROOM_MAX_X; x++) {
+    set(x, y, ROOM_MAX_Z, BLOCK.WALL);
   }
+}
+for (let x = ROOM_MIN_X; x <= ROOM_MAX_X; x++) {
+  set(x, 1, ROOM_MAX_Z, BLOCK.TRIM);
 }
 
 // Left wall (x = ROOM_MIN_X)
@@ -79,7 +107,6 @@ for (let y = WALL_Y_LO; y <= WALL_Y_HI; y++) {
     set(ROOM_MIN_X, y, z, BLOCK.WALL);
   }
 }
-// Left wall wainscoting: horizontal oak strips at y=2, y=11, y=19
 for (const wy of [2, 11, 19]) {
   for (let z = ROOM_MIN_Z; z <= ROOM_MAX_Z; z++) {
     set(ROOM_MIN_X, wy, z, BLOCK.TRIM);
@@ -92,53 +119,51 @@ for (let y = WALL_Y_LO; y <= WALL_Y_HI; y++) {
     set(ROOM_MAX_X, y, z, BLOCK.WALL);
   }
 }
-// Right wall wainscoting: horizontal oak strips at y=2, y=11, y=19
 for (const wy of [2, 11, 19]) {
   for (let z = ROOM_MIN_Z; z <= ROOM_MAX_Z; z++) {
     set(ROOM_MAX_X, wy, z, BLOCK.TRIM);
   }
 }
 
-// Ceiling (y = CEILING_Y)
+// Ceiling
 for (let x = ROOM_MIN_X; x <= ROOM_MAX_X; x++) {
   for (let z = ROOM_MIN_Z; z <= ROOM_MAX_Z; z++) {
     set(x, CEILING_Y, z, BLOCK.WALL);
   }
 }
-// Ceiling edge trim (front and back) so the ceiling isn’t one flat grey
 for (let x = ROOM_MIN_X; x <= ROOM_MAX_X; x++) {
   set(x, CEILING_Y, ROOM_MAX_Z, BLOCK.TRIM);
-  if (x < -6 || x > 15) set(x, CEILING_Y, ROOM_MIN_Z, BLOCK.TRIM);
+  set(x, CEILING_Y, ROOM_MIN_Z, BLOCK.TRIM);
 }
 
-// Stage (y=1, in front of board)
-for (let x = -2; x <= 11; x++) {
-  for (let z = 3; z <= 8; z++) {
-    set(x, 1, z, BLOCK.STAGE);
+// Stage strip in front of each plot (player standing area): for each plot origin, y=1, z from oz+2 to oz+8, x from ox-2 to ox+11
+for (let row = 0; row < PLOT_ROWS; row++) {
+  for (let col = 0; col < PLOT_COLS; col++) {
+    const ox = PLOT_ORIGIN_X + col * PLOT_SPACING_X;
+    const oz = PLOT_ORIGIN_Z + row * PLOT_SPACING_Z;
+    for (let x = ox - 2; x <= ox + 11; x++) {
+      for (let z = oz + 2; z <= oz + 8; z++) {
+        if (isInAnyPlotClearance(x, 1, z)) continue;
+        set(x, 1, z, BLOCK.STAGE);
+      }
+    }
   }
 }
 
-// Marquee (above board, accent)
-for (let x = -2; x <= 11; x++) {
-  for (let z = -1; z <= 1; z++) {
-    set(x, 20, z, BLOCK.ACCENT);
-  }
-}
-
-// Four corner pillars (oak-log)
-const corners = [[ROOM_MIN_X, ROOM_MIN_Z], [ROOM_MIN_X, ROOM_MAX_Z], [ROOM_MAX_X, ROOM_MIN_Z], [ROOM_MAX_X, ROOM_MAX_Z]];
+// Corner pillars (oak-log)
+const corners = [
+  [ROOM_MIN_X, ROOM_MIN_Z],
+  [ROOM_MIN_X, ROOM_MAX_Z],
+  [ROOM_MAX_X, ROOM_MIN_Z],
+  [ROOM_MAX_X, ROOM_MAX_Z],
+];
 for (const [px, pz] of corners) {
   for (let y = WALL_Y_LO; y <= WALL_Y_HI; y++) {
     set(px, y, pz, BLOCK.TRIM);
   }
 }
 
-// Front lip/railing (z = ROOM_MAX_Z, y=1) so players don't fall
-for (let x = ROOM_MIN_X; x <= ROOM_MAX_X; x++) {
-  set(x, 1, ROOM_MAX_Z, BLOCK.WALL);
-}
-
-
+// blockTypes: match what index.ts / map expect (id 8=floor, 11=oak-log, etc.)
 const blockTypes = [
   { id: 1, name: "andesite", textureUri: "blocks/andesite.png", isCustom: false, isMultiTexture: false },
   { id: 2, name: "birch-leaves", textureUri: "blocks/birch-leaves.png", isCustom: false, isMultiTexture: false },

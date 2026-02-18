@@ -1,6 +1,6 @@
 /**
  * Tetris — HYTOPIA SDK entry point.
- * Server-authoritative, tick-based gravity, solo-first. One world, one board, first player is controller.
+ * Multi-player presence: each player gets a private plot with isolated Tetris instance.
  */
 
 import 'dotenv/config';
@@ -9,11 +9,8 @@ import { join } from 'path';
 import { logLeaderboardEnvStatus, checkSupabaseConnectivity } from './src/server/config/leaderboard.js';
 import { startServer, Audio, PlayerEvent, PlayerManager, PlayerUIEvent } from 'hytopia';
 import type { World, WorldMap } from 'hytopia';
-import { createInitialState } from './src/server/state/WorldState.js';
-import type { TetrisState } from './src/server/state/types.js';
 import { runTick } from './src/server/systems/GameLoop.js';
 import { pushAction } from './src/server/systems/InputSystem.js';
-import { clearRenderCache, render } from './src/server/systems/RenderSystem.js';
 import { sendHudToPlayer } from './src/server/services/HudService.js';
 import { handleCommand } from './src/server/services/CommandService.js';
 import {
@@ -27,7 +24,6 @@ import {
 import {
   BLOCK_TEXTURE_URIS,
   BOARD_HEIGHT,
-  BOARD_ORIGIN,
   BOARD_WIDTH,
   BOARD_WALL_BLOCK_ID,
   TICKS_PER_SECOND,
@@ -37,9 +33,9 @@ import {
 import { clearPlayer } from './src/server/systems/InputSystem.js';
 import { tickBoundaryLava } from './src/server/systems/LavafallSystem.js';
 import type { LavafallState } from './src/server/systems/LavafallSystem.js';
-
-/** Camera position (no player entity — fixed view for Tetris). */
-const CAMERA_POSITION = { x: 4, y: 10, z: 6 };
+import { initPlots, assignPlot, releasePlot } from './src/server/plots/PlotManager.js';
+import { GameInstance } from './src/server/game/GameInstance.js';
+import { registerInstance, unregisterInstance, getAllInstances, getInstanceByPlayer } from './src/server/game/InstanceRegistry.js';
 
 /** Block type id for floor (used by map). */
 const FLOOR_BLOCK_ID = 8;
@@ -47,12 +43,19 @@ const FLOOR_BLOCK_ID = 8;
 /** Path to the arena map (loaded so the room is not empty). */
 const MAP_PATH = join(process.cwd(), 'assets', 'map.json');
 
-startServer((world: World) => {
-  const state: TetrisState = createInitialState();
-  let controllerPlayerId: string | null = null;
-  let prevGameStatus: typeof state.gameStatus = state.gameStatus;
+/** Camera offset from plot origin so each player looks at their own board. */
+function cameraPositionForPlot(origin: { x: number; y: number; z: number }): { x: number; y: number; z: number } {
+  return {
+    x: origin.x + Math.floor(BOARD_WIDTH / 2),
+    y: origin.y + Math.floor(BOARD_HEIGHT / 2),
+    z: origin.z + 6,
+  };
+}
 
-  // Load arena map first (floor, walls, stage, etc.); then we override block types 1–7, 8, 15 for Tetris/floor/wall
+startServer((world: World) => {
+  initPlots();
+
+  // Load arena map first (floor, walls, stage, etc.)
   try {
     const mapJson = readFileSync(MAP_PATH, 'utf-8');
     const map = JSON.parse(mapJson) as WorldMap;
@@ -61,7 +64,7 @@ startServer((world: World) => {
     console.warn('Tetris: could not load assets/map.json:', (err as Error).message);
   }
 
-  // Register block types before world.start() so chunk/world logic never sees unregistered IDs
+  // Register block types before world.start()
   for (let id = 1; id <= 7; id++) {
     world.blockTypeRegistry.registerGenericBlockType({
       id,
@@ -77,7 +80,7 @@ startServer((world: World) => {
   world.blockTypeRegistry.registerGenericBlockType({
     id: BOARD_WALL_BLOCK_ID,
     name: 'wall',
-    textureUri: 'blocks/oak-log', // board frame = oak (multi-texture)
+    textureUri: 'blocks/oak-log',
   });
 
   const LAVA_FRAME_IDS = [201, 202, 203, 204];
@@ -105,7 +108,6 @@ startServer((world: World) => {
   });
   soundtrack.play(world);
 
-  /** Stop and remove any non-soundtrack audio (footsteps, block crunch/collision SFX, etc.) so only the soundtrack plays. */
   function muteNonSoundtrackAudio(): void {
     const toRemove: Audio[] = [];
     world.audioManager.getAllAudios().forEach((audio) => {
@@ -127,58 +129,65 @@ startServer((world: World) => {
   for (let z = -WALL_DEPTH_BACK; z < 0; z++) boundaryZOffsets.push(z);
   for (let z = 0; z < WALL_DEPTH; z++) boundaryZOffsets.push(z);
 
-  let gameLoopStarted = false;
+  /** Track which players we've already submitted game-over score for (avoid duplicate submit). */
+  const gameOverSubmittedIds = new Set<string>();
+  /** Players who joined but got no plot (all full). Show NO_PLOT in HUD. */
+  const noPlotPlayerIds = new Set<string>();
+
   let gameLoopIntervalRef: ReturnType<typeof setInterval> | null = null;
   let tickInProgress = false;
   const tickIntervalMs = 1000 / TICKS_PER_SECOND;
 
-  /** Start the tick interval so actions (Start, R) are always consumed. Call when first player joins. */
   function startTickInterval(): void {
     if (gameLoopIntervalRef != null) return;
-    clearRenderCache(world);
-    render(state, world);
     setTimeout(tick, 0);
     gameLoopIntervalRef = setInterval(tick, tickIntervalMs);
-  }
-
-  /** Called when user clicks Start: enable gravity and game logic. */
-  function setGameStarted(): void {
-    if (gameLoopStarted) return;
-    gameLoopStarted = true;
-    clearRenderCache(world);
-    render(state, world);
   }
 
   function tick(): void {
     if (tickInProgress) return;
     tickInProgress = true;
     try {
-      muteNonSoundtrackAudio(); // Strip any SFX (steps, crunch, etc.) before tick
-      runTick(world, state, controllerPlayerId, tickIntervalMs, gameLoopStarted);
-      // Game over: submit controller's score and broadcast leaderboard (server-authoritative)
-      if (prevGameStatus === 'RUNNING' && state.gameStatus === 'GAME_OVER' && controllerPlayerId) {
-        const controller = PlayerManager.instance.getConnectedPlayersByWorld(world).find((p) => p.id === controllerPlayerId);
-        if (controller) {
-          submitScore(controller, state.score).then(() => {
-            refreshCache();
-            broadcastLeaderboard(world);
-          });
+      muteNonSoundtrackAudio();
+      runTick(world, tickIntervalMs);
+
+      // Game over: submit each affected player's score once
+      for (const instance of getAllInstances()) {
+        if (instance.state.gameStatus === 'GAME_OVER' && !gameOverSubmittedIds.has(instance.playerId)) {
+          const pl = PlayerManager.instance.getConnectedPlayersByWorld(world).find((p) => p.id === instance.playerId);
+          if (pl) {
+            gameOverSubmittedIds.add(instance.playerId);
+            submitScore(pl, instance.state.score).then(() => {
+              refreshCache();
+              broadcastLeaderboard(world);
+            });
+          }
         }
       }
-      prevGameStatus = state.gameStatus;
+
       PlayerManager.instance.getConnectedPlayersByWorld(world).forEach((player) => {
-        sendHudToPlayer(player, state, gameLoopStarted);
+        sendHudToPlayer(player, getLeaderboardForHud(String(player.id)), noPlotPlayerIds.has(player.id));
       });
-      muteNonSoundtrackAudio(); // Again after tick so only soundtrack remains
+      muteNonSoundtrackAudio();
+
       const now = Date.now();
       if (now - lavaState.lastMs >= LAVA_TICK_MS) {
         lavaState.frame = (lavaState.frame + 1) % LAVA_FRAME_IDS.length;
         lavaState.lastMs = now;
       }
-      tickBoundaryLava(world, lavaState.frame, LAVA_FRAME_IDS, BOARD_ORIGIN, BOARD_WIDTH, BOARD_HEIGHT, boundaryZOffsets);
+      // Boundary lava per active plot
+      for (const instance of getAllInstances()) {
+        tickBoundaryLava(
+          world,
+          lavaState.frame,
+          LAVA_FRAME_IDS,
+          instance.plot.origin,
+          BOARD_WIDTH,
+          BOARD_HEIGHT,
+          boundaryZOffsets
+        );
+      }
     } catch (err) {
-      clearRenderCache(world);
-      render(state, world);
       if (typeof console !== 'undefined' && console.error) console.error('[Tetris] tick error', err);
     } finally {
       tickInProgress = false;
@@ -187,43 +196,52 @@ startServer((world: World) => {
 
   world.on(PlayerEvent.JOINED_WORLD, ({ player }) => {
     player.ui.load('ui/index.html');
-    if (controllerPlayerId == null) {
-      controllerPlayerId = player.id;
-    }
     startTickInterval();
+
+    const plot = assignPlot(player.id);
+    if (plot) {
+      const instance = new GameInstance(plot, player.id);
+      registerInstance(player.id, instance);
+      instance.render(world);
+      // Spawn point is available as plot.spawnPoint when using a PlayerEntity; camera targets this plot
+      player.camera.setAttachedToPosition(cameraPositionForPlot(plot.origin));
+    } else {
+      noPlotPlayerIds.add(player.id);
+      player.camera.setAttachedToPosition({ x: 0, y: 10, z: 0 });
+      // HUD will show NO_PLOT via sendHudToPlayer
+    }
+
     player.ui.on(PlayerUIEvent.DATA, ({ data }: { data: Record<string, unknown> }) => {
       const action = data?.action as string | undefined;
       if (typeof action === 'string') {
         pushAction(player.id, action as Parameters<typeof pushAction>[1]);
-        if (action === 'start') setGameStarted();
+        if (action === 'start') {
+          const inst = getInstanceByPlayer(player.id);
+          if (inst) inst.setGameStarted();
+        }
       }
     });
+
     upsertPlayer(player).then(() => {});
-    const leaderboardPayload = getLeaderboardForHud(String(player.id));
-    sendHudToPlayer(player, state, gameLoopStarted, leaderboardPayload);
-
-    // Force full board render so client sees current game state
-    clearRenderCache(world);
-    render(state, world);
-
-    // No player entity: fix camera at the same view position so it doesn't get in the way
-    player.camera.setAttachedToPosition(CAMERA_POSITION);
+    sendHudToPlayer(player, getLeaderboardForHud(String(player.id)), noPlotPlayerIds.has(player.id));
   });
 
   world.on(PlayerEvent.LEFT_WORLD, ({ player }) => {
-    clearPlayer(player.id);
-    if (controllerPlayerId === player.id) {
-      controllerPlayerId = null;
+    const instance = getInstanceByPlayer(player.id);
+    if (instance) {
+      instance.clearAndDestroy(world);
+      unregisterInstance(player.id);
     }
+    releasePlot(player.id);
+    clearPlayer(player.id);
+    gameOverSubmittedIds.delete(player.id);
+    noPlotPlayerIds.delete(player.id);
   });
 
   world.on(PlayerEvent.CHAT_MESSAGE_SEND, ({ player, message }) => {
-    const result = handleCommand(message, state);
+    const result = handleCommand(player.id, message);
     if (result.handled && result.message) {
       world.chatManager.sendPlayerMessage(player, result.message);
     }
   });
-
-  clearRenderCache(world);
-  render(state, world);
 });

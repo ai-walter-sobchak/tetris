@@ -76,15 +76,30 @@
         }
       }
     }
-    if (data.gameStarted !== undefined) {
+    if (data.gameStarted !== undefined || data.status !== undefined) {
       var startArea = document.getElementById('start-area');
       var hint = document.getElementById('hint');
-      if (data.gameStarted) {
+      var status = data.status || '';
+      if (status === 'NO_PLOT') {
+        if (startArea) startArea.style.display = '';
+        if (hint) hint.textContent = 'All plots full. Wait for a free plot.';
+        var startBtn = document.getElementById('btn-start');
+        if (startBtn) startBtn.style.display = 'none';
+      } else if (status === 'ASSIGNING_PLOT') {
+        if (startArea) startArea.style.display = '';
+        if (hint) hint.textContent = 'Assigning plot…';
+        var startBtn2 = document.getElementById('btn-start');
+        if (startBtn2) startBtn2.style.display = 'none';
+      } else if (data.gameStarted) {
         if (startArea) startArea.style.display = 'none';
         if (hint) hint.textContent = 'WASD or arrows: A/← left, D/→ right, W/↑ rotate, S/↓ soft drop. Space hard drop. R or Reset to restart.';
+        var startBtn3 = document.getElementById('btn-start');
+        if (startBtn3) startBtn3.style.display = '';
       } else {
         if (startArea) startArea.style.display = '';
         if (hint) hint.textContent = 'Click Start to begin the round.';
+        var startBtn4 = document.getElementById('btn-start');
+        if (startBtn4) startBtn4.style.display = '';
       }
     }
   }

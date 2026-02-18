@@ -1,9 +1,10 @@
 /**
- * CommandService: parses chat commands for debug (e.g. /reset, /speed, /fillrow, /spawn).
+ * CommandService: parses chat commands. Per-player: /reset, /speed, etc. apply only to your instance.
+ * /myplot, /plots for plot info.
  */
 
-import type { TetrisState } from '../state/types.js';
-import { resetState } from '../state/WorldState.js';
+import { getInstanceByPlayer } from '../game/InstanceRegistry.js';
+import { getPlotByPlayer, getAllPlots } from '../plots/PlotManager.js';
 import { forceNextPiece, fillRow } from '../systems/TetrisSystem.js';
 import { GRAVITY_MIN_MS, GRAVITY_BASE_MS } from '../config/tetris.js';
 import { clampGravityMs } from '../util/time.js';
@@ -17,13 +18,9 @@ const PIECE_NAMES: Record<string, PieceTypeId> = {
 };
 
 /**
- * Parse chat message and apply debug command if applicable.
- * Returns { handled, message } for optional reply to player.
+ * Parse chat message and apply command. Routing: state-changing commands use this player's instance only.
  */
-export function handleCommand(
-  text: string,
-  state: TetrisState
-): CommandResult {
+export function handleCommand(playerId: string, text: string): CommandResult {
   const trimmed = text.trim();
   if (!trimmed.startsWith('/')) return { handled: false };
 
@@ -31,33 +28,51 @@ export function handleCommand(
   const cmd = parts[0]?.toLowerCase();
 
   switch (cmd) {
+    case 'myplot': {
+      const plot = getPlotByPlayer(playerId);
+      if (!plot) return { handled: true, message: 'You have no plot assigned.' };
+      return { handled: true, message: `Your plot: ${plot.id} at (${plot.origin.x},${plot.origin.y},${plot.origin.z}).` };
+    }
+    case 'plots': {
+      const plots = getAllPlots();
+      const lines = plots.map((p) => `${p.id}: ${p.assignedPlayerId ?? 'free'}`);
+      return { handled: true, message: lines.join(' | ') };
+    }
     case 'reset': {
-      resetState(state);
+      const instance = getInstanceByPlayer(playerId);
+      if (!instance) return { handled: true, message: 'You have no active game. Get a plot first.' };
+      instance.reset();
       return { handled: true, message: 'Game reset.' };
     }
     case 'speed': {
+      const instance = getInstanceByPlayer(playerId);
+      if (!instance) return { handled: true, message: 'You have no active game.' };
       const ms = parseInt(parts[1], 10);
       if (Number.isNaN(ms) || ms < 0) {
         return { handled: true, message: 'Usage: /speed <ms>. Example: /speed 200' };
       }
-      state.gravityIntervalMs = clampGravityMs(ms, GRAVITY_MIN_MS, GRAVITY_BASE_MS);
-      return { handled: true, message: `Gravity interval set to ${state.gravityIntervalMs}ms` };
+      instance.state.gravityIntervalMs = clampGravityMs(ms, GRAVITY_MIN_MS, GRAVITY_BASE_MS);
+      return { handled: true, message: `Gravity interval set to ${instance.state.gravityIntervalMs}ms` };
     }
     case 'fillrow': {
+      const instance = getInstanceByPlayer(playerId);
+      if (!instance) return { handled: true, message: 'You have no active game.' };
       const y = parseInt(parts[1], 10);
       if (Number.isNaN(y) || y < 0 || y > 19) {
         return { handled: true, message: 'Usage: /fillrow <y> (0-19)' };
       }
-      fillRow(state, y);
+      fillRow(instance.state, y);
       return { handled: true, message: `Row ${y} filled.` };
     }
     case 'spawn': {
+      const instance = getInstanceByPlayer(playerId);
+      if (!instance) return { handled: true, message: 'You have no active game.' };
       const name = parts[1];
       const type = name != null ? PIECE_NAMES[name] : undefined;
       if (type == null) {
         return { handled: true, message: 'Usage: /spawn <I|O|T|S|Z|J|L>' };
       }
-      forceNextPiece(state, type);
+      forceNextPiece(instance.state, type);
       return { handled: true, message: `Next piece set to ${name.toUpperCase()}.` };
     }
     default:
