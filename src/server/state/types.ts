@@ -46,6 +46,14 @@ export interface TetrisState {
   lastLineClearTimeMs: number;
   /** Consecutive line clears within combo window; 0 = first clear or window expired. */
   comboCount: number;
+
+  /**
+   * Line-clear flash (exact rows): when non-null, these grid row indices should be rendered
+   * as a glow/emissive highlight until `lineClearFxUntilMs`, after which the rows are removed.
+   */
+  lineClearFxRows: number[] | null;
+  /** Timestamp (ms) when the line-clear flash ends and we finalize the clear. */
+  lineClearFxUntilMs: number;
 }
 
 export type TetrominoName = 'I' | 'O' | 'T' | 'S' | 'Z' | 'J' | 'L';

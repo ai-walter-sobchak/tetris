@@ -2,7 +2,8 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#0a0a0f" />
   <title>Tetris HUD</title>
   <link rel="stylesheet" href="{{CDN_ASSETS_URL}}/ui/hud.css" />
 </head>
@@ -19,15 +20,6 @@
         <button type="button" class="btn btn-new-game" id="btn-new-game" data-action="reset" aria-label="Start new game">Start New Game</button>
       </div>
     </div>
-    <!-- Dedicated audio controls HUD (separate from leaderboard so input/events work reliably) -->
-    <div class="audio-controls-panel" id="audio-controls-panel" aria-label="Sound controls">
-      <div class="audio-controls-title">Sound</div>
-      <div class="audio-controls-buttons">
-        <button type="button" class="btn btn-mute" id="btn-mute-music" aria-label="Mute music" title="Mute music">🎵 Music</button>
-        <button type="button" class="btn btn-mute" id="btn-mute-sfx" aria-label="Mute SFX" title="Mute sound effects">🔊 SFX</button>
-      </div>
-    </div>
-
     <div class="leaderboard-panel" id="leaderboard-panel" aria-label="Global leaderboard">
       <div class="leaderboard-header">
         <div class="leaderboard-title">LEADERBOARD</div>
@@ -45,15 +37,15 @@
           <div class="stat"><span class="label">Level</span><span id="level" data-prev="1">1</span></div>
           <div class="stat"><span class="label">Lines</span><span id="lines" data-prev="0">0</span></div>
         </div>
-        <div class="start-restart-row">
-          <button type="button" class="btn btn-start-restart" id="btn-start-restart" data-action="start" aria-label="Start game">Start</button>
-        </div>
       </div>
       <p class="hint hint-server-only hidden" id="hint-server-message"></p>
     </div>
 
-    <!-- Right column: next piece + controls, stacked under leaderboard -->
+    <!-- Right column: start game, next piece, how to play (same HUD strip under leaderboard) -->
     <div class="hud-right-stack">
+      <div class="start-game-panel" id="start-game-panel" aria-label="Start game">
+        <button type="button" class="btn btn-start-game" id="btn-start-game" data-action="start" aria-label="Start game">Start Game</button>
+      </div>
       <div class="next-preview-panel" id="next-preview-container" aria-label="Next piece">
         <div class="next-preview-title">NEXT</div>
         <div class="next-preview-grid" id="next-preview-grid"></div>
@@ -66,6 +58,13 @@
           <span class="controls-key"><kbd>S</kbd> or <kbd>↓</kbd> Soft drop</span>
           <span class="controls-key"><kbd>Space</kbd> Hard drop</span>
           <span class="controls-key"><kbd>R</kbd> Restart</span>
+        </div>
+      </div>
+      <div class="audio-controls-panel" id="audio-controls-panel" aria-label="Sound controls">
+        <div class="audio-controls-title">Sound</div>
+        <div class="audio-controls-buttons">
+          <button type="button" class="btn btn-mute" id="btn-mute-music" aria-label="Mute music" title="Mute music">🎵 Music</button>
+          <button type="button" class="btn btn-mute" id="btn-mute-sfx" aria-label="Mute SFX" title="Mute sound effects">🔊 SFX</button>
         </div>
       </div>
     </div>

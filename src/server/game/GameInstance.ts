@@ -5,6 +5,7 @@
  */
 
 import type { World } from 'hytopia';
+import { ParticleEmitter } from 'hytopia';
 import type { Plot } from '../plots/PlotManager.js';
 import type { TetrisState } from '../state/types.js';
 import type { InputAction } from '../systems/InputSystem.js';
@@ -25,6 +26,7 @@ import { tickReactorColumnLava, clearReactorLavaState, DEFAULT_REACTOR_THEME } f
 import type { HudPayload } from '../services/HudService.js';
 import { buildHudPayload } from '../services/HudService.js';
 import type { LeaderboardPayload } from '../schema/hudMessages.js';
+import { finalizeLineClear } from '../systems/TetrisSystem.js';
 
 const RENDER_THROTTLE_MS = 50; // ~20 fps max for per-instance render
 
@@ -49,6 +51,9 @@ export class GameInstance {
   pendingLineClearBurst: LineClearResult | null;
   /** When set, next HUD send should include pieceLock (block landed) then clear this. */
   pendingPieceLock: boolean;
+  /** One-shot particle emitters used to fake a bloom/glow burst on line clear. */
+  private _lineClearFxEmitters: ParticleEmitter[];
+  private _lineClearFxUntilMsApplied: number;
 
   constructor(plot: Plot, playerId: string, seed?: number) {
     this.plot = plot;
@@ -59,6 +64,82 @@ export class GameInstance {
     this.lastRenderMs = 0;
     this.pendingLineClearBurst = null;
     this.pendingPieceLock = false;
+    this._lineClearFxEmitters = [];
+    this._lineClearFxUntilMsApplied = 0;
+  }
+
+  private _clearLineClearFxEmitters(): void {
+    for (const emitter of this._lineClearFxEmitters) {
+      try {
+        emitter.despawn();
+      } catch {
+        // ignore
+      }
+    }
+    this._lineClearFxEmitters = [];
+    this._lineClearFxUntilMsApplied = 0;
+  }
+
+  private _applyLineClearBloomFx(world: World, nowMs: number): void {
+    const rows = this.state.lineClearFxRows;
+    if (!rows || rows.length === 0) {
+      if (this._lineClearFxEmitters.length > 0) this._clearLineClearFxEmitters();
+      return;
+    }
+
+    // Only spawn emitters once per clear (keyed off untilMs).
+    if (this._lineClearFxUntilMsApplied === this.state.lineClearFxUntilMs) return;
+
+    this._clearLineClearFxEmitters();
+    this._lineClearFxUntilMsApplied = this.state.lineClearFxUntilMs;
+
+    const origin = this.plot.origin;
+    const centerX = origin.x + (BOARD_WIDTH - 1) / 2;
+    const zInFrontOfBoard = origin.z + 0.8;
+    const msRemaining = Math.max(0, this.state.lineClearFxUntilMs - nowMs);
+
+    for (const row of rows) {
+      const emitter = new ParticleEmitter({
+        textureUri: 'particles/star_01.png',
+        position: { x: centerX, y: origin.y + row + 0.5, z: zInFrontOfBoard },
+        positionVariance: { x: BOARD_WIDTH / 2, y: 0.06, z: 0.06 },
+        maxParticles: 220,
+        rate: 0, // one-shot burst
+        lifetime: 0.22,
+        lifetimeVariance: 0.06,
+        sizeStart: 0.35,
+        sizeStartVariance: 0.2,
+        sizeEnd: 0.05,
+        sizeEndVariance: 0.03,
+        opacityStart: 0.9,
+        opacityStartVariance: 0.1,
+        opacityEnd: 0,
+        opacityEndVariance: 0.05,
+        colorStart: { r: 255, g: 160, b: 40 },
+        colorStartVariance: { r: 30, g: 20, b: 10 },
+        colorEnd: { r: 255, g: 80, b: 0 },
+        colorEndVariance: { r: 20, g: 20, b: 10 },
+        // Per SDK source: values > 1 create HDR/bloom effects.
+        colorIntensityStart: 3.0,
+        colorIntensityEnd: 2.0,
+        velocity: { x: 0, y: 0.2, z: 0 },
+        velocityVariance: { x: 1.8, y: 0.5, z: 0.2 },
+        gravity: { x: 0, y: 0, z: 0 },
+        transparent: true,
+      });
+
+      emitter.spawn(world);
+      emitter.burst(90);
+      this._lineClearFxEmitters.push(emitter);
+
+      setTimeout(() => {
+        try {
+          if (emitter.isSpawned) emitter.despawn();
+        } catch {
+          // ignore
+        }
+      }, msRemaining + 350);
+    }
   }
 
   /** Call when player sends 'start' — enables gravity and piece spawn. */
@@ -77,13 +158,17 @@ export class GameInstance {
       this.dirty = true;
       return;
     }
+    // Freeze all gameplay actions during the line-clear flash window (except reset above).
+    if (this.state.lineClearFxRows && this.state.lineClearFxRows.length > 0) {
+      return;
+    }
     if (this.state.gameStatus !== 'RUNNING' || !action || action === 'start') return;
     if (action === 'left') tryMove(this.state, -1, 0);
     else if (action === 'right') tryMove(this.state, 1, 0);
     else if (action === 'rotate') tryRotate(this.state);
     else if (action === 'hardDrop') {
       const rngObj = createRng(getRngSeed(this.state));
-      const lineClear = hardDrop(this.state, () => rngObj.next());
+      const lineClear = hardDrop(this.state, () => rngObj.next(), Date.now());
       this.state.rngState = rngObj.getState();
       this.pendingPieceLock = true;
       if (lineClear.linesCleared > 0) this.pendingLineClearBurst = lineClear;
@@ -104,6 +189,17 @@ export class GameInstance {
     if (!this.gameStarted) {
       this.dirty = true;
       return;
+    }
+
+    const nowMs = Date.now();
+    // Line-clear flash: pause gameplay, then finalize the clear when timer expires.
+    if (state.lineClearFxRows && state.lineClearFxRows.length > 0) {
+      if (nowMs < state.lineClearFxUntilMs) {
+        this.dirty = true;
+        return;
+      }
+      finalizeLineClear(state);
+      this.dirty = true;
     }
 
     const rngObj = createRng(getRngSeed(state));
@@ -134,7 +230,7 @@ export class GameInstance {
     if (state.activePiece && state.gravityAccumulatorMs === 0) {
       state.gravityAccumulatorMs = state.softDropActive ? 50 : state.gravityIntervalMs;
     }
-    const lineClear = tickGravity(state, effectiveDeltaMs, rng, Date.now());
+    const lineClear = tickGravity(state, effectiveDeltaMs, rng, nowMs);
     if (lineClear) {
       this.pendingPieceLock = true;
       if (lineClear.linesCleared > 0) this.pendingLineClearBurst = lineClear;
@@ -171,6 +267,7 @@ export class GameInstance {
   render(world: World): void {
     const now = Date.now();
     tickReactorColumnLava(world, this.plot, now, DEFAULT_REACTOR_THEME);
+    this._applyLineClearBloomFx(world, now);
     if (!this.dirty && now - this.lastRenderMs < RENDER_THROTTLE_MS) return;
     renderInstance(this.state, world, this.plot.origin, this.plot.id);
     this.dirty = false;
@@ -186,6 +283,7 @@ export class GameInstance {
 
   /** Clear this instance's rendered blocks and cache. Call when releasing plot. */
   clearAndDestroy(world: World): void {
+    this._clearLineClearFxEmitters();
     clearInstanceRenderCache(world, this.plot);
     clearReactorLavaState(this.plot.id);
   }

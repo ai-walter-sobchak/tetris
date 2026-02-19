@@ -59,6 +59,9 @@ export const COMBO_WINDOW_MS = 5000;
 /** Per-stack multiplier: 1 + (comboCount * COMBO_MULTIPLIER_PER_STACK). */
 export const COMBO_MULTIPLIER_PER_STACK = 0.1;
 
+/** Line-clear animation: how long (ms) to flash the exact cleared rows before removing them. */
+export const LINE_CLEAR_FLASH_MS = 180;
+
 /** Piece type id to block type id (1-7). 0 is reserved for air. */
 export const PIECE_TYPE_TO_BLOCK_ID: Record<number, number> = {
   1: 1, // I -> block 1

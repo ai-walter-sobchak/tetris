@@ -10,6 +10,7 @@ import {
   GRAVITY_BASE_MS,
   GRAVITY_DECREASE_PER_LEVEL_MS,
   GRAVITY_MIN_MS,
+  LINE_CLEAR_FLASH_MS,
   SOFT_DROP_INTERVAL_MS,
   LINES_PER_LEVEL,
   SCORE_PER_LINES,
@@ -180,6 +181,61 @@ export interface LineClearResult {
   points: number;
 }
 
+function findFullRows(board: BoardGrid): number[] {
+  const fullRows: number[] = [];
+  for (let y = 0; y < BOARD_HEIGHT; y++) {
+    if (board[y]?.length === BOARD_WIDTH && board[y].every((c) => c !== 0)) fullRows.push(y);
+  }
+  return fullRows;
+}
+
+function applyLineClearScoring(state: TetrisState, fullRowsCount: number, nowMs: number): number {
+  // Combo: within window of previous clear = stack multiplier
+  const inWindow =
+    state.lastLineClearTimeMs > 0 && nowMs - state.lastLineClearTimeMs <= COMBO_WINDOW_MS;
+  const newComboCount = inWindow ? state.comboCount + 1 : 0;
+  state.lastLineClearTimeMs = nowMs;
+  state.comboCount = newComboCount;
+
+  const basePoints = SCORE_PER_LINES[fullRowsCount] ?? 0;
+  const multiplier = 1 + newComboCount * COMBO_MULTIPLIER_PER_STACK;
+  const points = Math.round(basePoints * multiplier);
+  state.score += points;
+  state.lines += fullRowsCount;
+
+  const levelBefore = state.level;
+  state.level = Math.floor(state.lines / LINES_PER_LEVEL) + 1;
+  if (state.level > levelBefore) {
+    state.gravityIntervalMs = clampGravityMs(
+      GRAVITY_BASE_MS - state.level * GRAVITY_DECREASE_PER_LEVEL_MS,
+      GRAVITY_MIN_MS,
+      GRAVITY_BASE_MS
+    );
+  }
+
+  return points;
+}
+
+/** Finalize a pending line clear after the flash window: remove rows and shift stack down. */
+export function finalizeLineClear(state: TetrisState): void {
+  const rows = state.lineClearFxRows;
+  if (!rows || rows.length === 0) return;
+
+  // Remove rows from highest index first so splice doesn't shift indices we still need to remove.
+  const sorted = [...rows].sort((a, b) => b - a);
+  for (const row of sorted) {
+    if (row < 0 || row >= BOARD_HEIGHT) continue;
+    state.board.splice(row, 1);
+    state.board.push(Array(BOARD_WIDTH).fill(0));
+  }
+  while (state.board.length < BOARD_HEIGHT) {
+    state.board.push(Array(BOARD_WIDTH).fill(0));
+  }
+
+  state.lineClearFxRows = null;
+  state.lineClearFxUntilMs = 0;
+}
+
 /**
  * Merge piece into board and clear full lines. Call after lock.
  * Line clear: identify full rows, remove them (splice), then push empty rows on top
@@ -199,45 +255,16 @@ function mergeAndClearLines(state: TetrisState, nowMs: number): LineClearResult 
   }
   state.activePiece = null;
 
-  const fullRows: number[] = [];
-  for (let y = 0; y < BOARD_HEIGHT; y++) {
-    if (state.board[y].every(c => c !== 0)) fullRows.push(y);
-  }
+  const fullRows = findFullRows(state.board);
   state.lastLinesCleared = fullRows.length;
-
   if (fullRows.length === 0) return zero;
 
-  // Remove rows from highest index first so splice doesn't shift indices we still need to remove
-  fullRows.sort((a, b) => b - a);
-  for (const row of fullRows) {
-    state.board.splice(row, 1);
-    state.board.push(Array(BOARD_WIDTH).fill(0));
-  }
-  while (state.board.length < BOARD_HEIGHT) {
-    state.board.push(Array(BOARD_WIDTH).fill(0));
-  }
+  const points = applyLineClearScoring(state, fullRows.length, nowMs);
 
-  // Combo: within 5s of previous clear = stack multiplier
-  const inWindow =
-    state.lastLineClearTimeMs > 0 && nowMs - state.lastLineClearTimeMs <= COMBO_WINDOW_MS;
-  const newComboCount = inWindow ? state.comboCount + 1 : 0;
-  state.lastLineClearTimeMs = nowMs;
-  state.comboCount = newComboCount;
+  // Start line-clear flash (exact rows) and delay the actual row removal until it expires.
+  state.lineClearFxRows = [...fullRows];
+  state.lineClearFxUntilMs = nowMs + LINE_CLEAR_FLASH_MS;
 
-  const basePoints = SCORE_PER_LINES[fullRows.length] ?? 0;
-  const multiplier = 1 + newComboCount * COMBO_MULTIPLIER_PER_STACK;
-  const points = Math.round(basePoints * multiplier);
-  state.score += points;
-  state.lines += fullRows.length;
-  const levelBefore = state.level;
-  state.level = Math.floor(state.lines / LINES_PER_LEVEL) + 1;
-  if (state.level > levelBefore) {
-    state.gravityIntervalMs = clampGravityMs(
-      GRAVITY_BASE_MS - state.level * GRAVITY_DECREASE_PER_LEVEL_MS,
-      GRAVITY_MIN_MS,
-      GRAVITY_BASE_MS
-    );
-  }
   return { linesCleared: fullRows.length, points };
 }
 
@@ -245,6 +272,8 @@ function mergeAndClearLines(state: TetrisState, nowMs: number): LineClearResult 
 function lockPiece(state: TetrisState, rng: () => number, nowMs: number): LineClearResult {
   const result = mergeAndClearLines(state, nowMs);
   state.gravityAccumulatorMs = 0;
+  // If we started the line-clear flash, defer row removal + spawn until the flash is finalized.
+  if (state.lineClearFxRows && state.lineClearFxRows.length > 0) return result;
   if (stackReachedTop(state.board)) {
     state.gameStatus = 'GAME_OVER';
     state.activePiece = null;

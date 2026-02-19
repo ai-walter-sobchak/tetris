@@ -274,17 +274,13 @@
       lastStatus = status;
     }
 
-    // ——— Start button: show only when game has not been started (gameStarted is the only source of truth; server sends RUNNING even before start). ———
+    // ——— Start Game panel (right-side HUD): visible only when game not started; hide during play and after game over until they click Start New Game. ———
+    // Only show when we explicitly know the game hasn't started (gameStarted === false). If gameStarted is undefined (e.g. in partial payloads), don't change visibility to avoid a brief flash during gameplay.
     var serverStatus = data.serverStatus;
-    var startRow = document.querySelector('.start-restart-row');
-    var startRestartBtn = document.getElementById('btn-start-restart');
-    if (startRow && startRestartBtn) {
-      startRestartBtn.textContent = 'Start';
-      startRestartBtn.setAttribute('data-action', 'start');
-      startRestartBtn.setAttribute('aria-label', 'Start game');
-      var gameStarted = data.gameStarted === true;
-      var hideStartRow = gameStarted || serverStatus === 'NO_PLOT' || serverStatus === 'ASSIGNING_PLOT';
-      if (hideStartRow) startRow.classList.add('hidden'); else startRow.classList.remove('hidden');
+    var startPanel = document.getElementById('start-game-panel');
+    if (startPanel && (data.gameStarted !== undefined || data.serverStatus !== undefined)) {
+      var showStart = data.gameStarted === false && serverStatus !== 'NO_PLOT' && serverStatus !== 'ASSIGNING_PLOT';
+      if (showStart) startPanel.classList.remove('hidden'); else startPanel.classList.add('hidden');
     }
 
     // ——— Server-only hint (NO_PLOT / ASSIGNING_PLOT). ———

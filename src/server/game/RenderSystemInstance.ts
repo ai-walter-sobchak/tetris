@@ -54,7 +54,8 @@ function gridToWorld(origin: { x: number; y: number; z: number }, gx: number, gy
   };
 }
 
-const VALID_BLOCK_IDS = new Set([0, 1, 2, 3, 4, 5, 6, 7, BOARD_WALL_BLOCK_ID]);
+const GLOW_BLOCK_ID = 53; // registered in index.ts as reactor_column_lava_flow (magma texture)
+const VALID_BLOCK_IDS = new Set([0, 1, 2, 3, 4, 5, 6, 7, BOARD_WALL_BLOCK_ID, GLOW_BLOCK_ID]);
 
 /**
  * Render this instance's board and walls to the world at the given origin.
@@ -73,11 +74,13 @@ export function renderInstance(
   const desired = new Map<string, number>();
   const width = state.board[0].length;
   const height = BOARD_RENDER_HEIGHT;
+  const fxRows = state.lineClearFxRows && state.lineClearFxRows.length > 0 ? new Set(state.lineClearFxRows) : null;
 
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
       const id = getDesiredCell(state, x, y);
-      const blockId = id === 0 ? 0 : PIECE_TYPE_TO_BLOCK_ID[id] ?? 0;
+      let blockId = id === 0 ? 0 : PIECE_TYPE_TO_BLOCK_ID[id] ?? 0;
+      if (fxRows && fxRows.has(y) && blockId !== 0) blockId = GLOW_BLOCK_ID;
       desired.set(cellKey(x, y), blockId);
     }
   }
